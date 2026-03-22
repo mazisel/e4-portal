@@ -12,7 +12,13 @@ services:
     ports:
       - "7001:3000"
     environment:
-      # Sunucu tarafı değişkenler (runtime'da okunur)
       NETGSM_USERCODE: ${NETGSM_USERCODE}
       NETGSM_PASSWORD: ${NETGSM_PASSWORD}
       NETGSM_MSGHEADER: ${NETGSM_MSGHEADER}
+    networks:
+      - proxy
+
+networks:
+  proxy:
+    external: true
+    name: npm_net
