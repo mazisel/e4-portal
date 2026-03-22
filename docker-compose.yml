@@ -10,7 +10,7 @@ services:
     container_name: e4-portal
     restart: unless-stopped
     ports:
-      - "3000:3000"
+      - "7001:3000"
     environment:
       # Sunucu tarafı değişkenler (runtime'da okunur)
       NETGSM_USERCODE: ${NETGSM_USERCODE}
