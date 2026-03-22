@@ -1,0 +1,18 @@
+services:
+  e4-portal:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        NEXT_PUBLIC_SUPABASE_URL: ${NEXT_PUBLIC_SUPABASE_URL}
+        NEXT_PUBLIC_SUPABASE_ANON_KEY: ${NEXT_PUBLIC_SUPABASE_ANON_KEY}
+    image: e4-portal:latest
+    container_name: e4-portal
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    environment:
+      # Sunucu tarafı değişkenler (runtime'da okunur)
+      NETGSM_USERCODE: ${NETGSM_USERCODE}
+      NETGSM_PASSWORD: ${NETGSM_PASSWORD}
+      NETGSM_MSGHEADER: ${NETGSM_MSGHEADER}

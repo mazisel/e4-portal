@@ -1,0 +1,10 @@
+.git
+.gitignore
+.env*
+node_modules
+.next
+out
+Dockerfile
+docker-compose.yml
+*.md
+.DS_Store
