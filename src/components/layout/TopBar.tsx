@@ -1,7 +1,8 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { Menu, LogOut, User, Sun, Moon, Monitor } from 'lucide-react'
+import Link from 'next/link'
+import { Menu, LogOut, User, Sun, Moon, Monitor, ChevronLeft } from 'lucide-react'
 import { useTheme } from 'next-themes'
 import { Button } from '@/components/ui/button'
 import {
@@ -15,10 +16,11 @@ import {
 import { useAuth } from '@/contexts/AuthContext'
 
 interface TopBarProps {
-  onMenuClick: () => void
+  onMenuClick?: () => void
+  backHref?: string
 }
 
-export function TopBar({ onMenuClick }: TopBarProps) {
+export function TopBar({ onMenuClick, backHref }: TopBarProps) {
   const { user, signOut } = useAuth()
   const { theme, setTheme } = useTheme()
   const [mounted, setMounted] = useState(false)
@@ -28,13 +30,25 @@ export function TopBar({ onMenuClick }: TopBarProps) {
   const ThemeIcon = theme === 'dark' ? Moon : theme === 'light' ? Sun : Monitor
 
   return (
-    <header className="h-14 border-b bg-card flex items-center justify-between px-4 gap-4">
-      <button
-        onClick={onMenuClick}
-        className="lg:hidden p-2 rounded-md hover:bg-muted"
-      >
-        <Menu className="w-5 h-5" />
-      </button>
+    <header className="h-14 border-b bg-card flex items-center justify-between px-4 gap-4 shrink-0">
+      <div className="flex items-center gap-2">
+        {onMenuClick && (
+          <button
+            onClick={onMenuClick}
+            className="lg:hidden p-2 rounded-md hover:bg-muted"
+          >
+            <Menu className="w-5 h-5" />
+          </button>
+        )}
+        {backHref && (
+          <Button variant="ghost" size="sm" asChild className="gap-1 text-muted-foreground">
+            <Link href={backHref}>
+              <ChevronLeft className="w-4 h-4" />
+              Ana Sayfa
+            </Link>
+          </Button>
+        )}
+      </div>
 
       <div className="flex-1" />
 
