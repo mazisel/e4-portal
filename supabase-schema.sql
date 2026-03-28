@@ -183,7 +183,7 @@ CREATE OR REPLACE FUNCTION log_transaction_change()
 RETURNS TRIGGER AS $$
 BEGIN
   INSERT INTO transaction_history (transaction_id, user_id, old_data, new_data)
-  VALUES (OLD.id, OLD.user_id, to_jsonb(OLD), to_jsonb(NEW));
+  VALUES (OLD.id, auth.uid(), to_jsonb(OLD), to_jsonb(NEW));
   RETURN NEW;
 END;
 $$ LANGUAGE plpgsql;
