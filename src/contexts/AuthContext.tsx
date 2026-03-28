@@ -8,6 +8,7 @@ import { useRouter } from 'next/navigation'
 interface Profile {
   id: string
   full_name: string | null
+  email: string | null
   can_access_finance: boolean
 }
 
@@ -37,10 +38,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const router = useRouter()
   const supabase = createClient()
 
-  const fetchProfile = async (userId: string) => {
+  const fetchProfile = async (userId: string, email?: string) => {
+    // Email varsa profiles'a kaydet (ilk giriş veya güncelleme)
+    if (email) {
+      await supabase
+        .from('profiles')
+        .upsert({ id: userId, email }, { onConflict: 'id' })
+    }
     const { data } = await supabase
       .from('profiles')
-      .select('id, full_name, can_access_finance')
+      .select('id, full_name, email, can_access_finance')
       .eq('id', userId)
       .single()
     if (data) setProfile(data as Profile)
@@ -50,7 +57,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     supabase.auth.getSession().then(({ data: { session } }) => {
       setSession(session)
       setUser(session?.user ?? null)
-      if (session?.user) fetchProfile(session.user.id)
+      if (session?.user) fetchProfile(session.user.id, session.user.email)
       setLoading(false)
     })
 
@@ -59,7 +66,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         setSession(session)
         setUser(session?.user ?? null)
         if (session?.user) {
-          fetchProfile(session.user.id)
+          fetchProfile(session.user.id, session.user.email)
         } else {
           setProfile(null)
         }

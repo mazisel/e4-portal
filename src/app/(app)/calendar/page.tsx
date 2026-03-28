@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react'
 import { useCalendar, CalendarPlan } from '@/hooks/useCalendar'
-import { ChevronLeft, ChevronRight, X, Check } from 'lucide-react'
+import { ChevronLeft, ChevronRight, X, Check, User } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
 
@@ -24,6 +24,12 @@ function formatWeekStart(date: Date): string {
 
 function formatHour(h: number): string {
   return `${String(h).padStart(2, '0')}:00`
+}
+
+function displayName(email: string | null, fullName: string | null): string {
+  if (fullName) return fullName
+  if (email) return email.split('@')[0]
+  return '?'
 }
 
 interface CellEditorProps {
@@ -59,9 +65,7 @@ function CellEditor({ plan, onSave, onDelete, onClose }: CellEditorProps) {
       />
       <div className="flex gap-1 justify-end">
         {plan && (
-          <button onClick={onDelete} className="text-destructive hover:underline text-xs">
-            Sil
-          </button>
+          <button onClick={onDelete} className="text-destructive hover:underline text-xs">Sil</button>
         )}
         <button onClick={onClose} className="p-1 rounded hover:bg-muted">
           <X className="w-3 h-3" />
@@ -80,17 +84,31 @@ function CellEditor({ plan, onSave, onDelete, onClose }: CellEditorProps) {
 export default function CalendarPage() {
   const [weekStart, setWeekStart] = useState<Date>(() => getMondayOf(new Date()))
   const [editing, setEditing] = useState<{ day: number; hour: number } | null>(null)
-  const { plans, loading, fetchWeek, upsertPlan, deletePlan } = useCalendar()
+  const [selectedUserId, setSelectedUserId] = useState<string | null>(null)
+
+  const { plans, users, currentUserId, loading, fetchUsers, fetchWeek, upsertPlan, deletePlan } = useCalendar()
 
   const weekKey = formatWeekStart(weekStart)
+  const isOwnCalendar = selectedUserId === currentUserId
+
+  // İlk yükleme: kullanıcı listesini çek, kendi takvimini varsayılan yap
+  useEffect(() => {
+    fetchUsers()
+  }, [fetchUsers])
 
   useEffect(() => {
-    fetchWeek(weekKey)
-  }, [weekKey, fetchWeek])
+    if (currentUserId && !selectedUserId) {
+      setSelectedUserId(currentUserId)
+    }
+  }, [currentUserId, selectedUserId])
+
+  // Seçili kullanıcı veya hafta değişince takvimi çek
+  useEffect(() => {
+    if (selectedUserId) fetchWeek(weekKey, selectedUserId)
+  }, [weekKey, selectedUserId, fetchWeek])
 
   const getPlan = useCallback(
-    (day: number, hour: number) =>
-      plans.find(p => p.day_of_week === day && p.hour === hour),
+    (day: number, hour: number) => plans.find(p => p.day_of_week === day && p.hour === hour),
     [plans]
   )
 
@@ -118,8 +136,11 @@ export default function CalendarPage() {
     setEditing(null)
   }
 
+  const selectedUser = users.find(u => u.id === selectedUserId)
+
   return (
     <div className="space-y-4">
+      {/* Header */}
       <div className="flex items-center justify-between flex-wrap gap-2">
         <div>
           <h1 className="text-2xl font-bold">Takvim</h1>
@@ -138,6 +159,38 @@ export default function CalendarPage() {
         </div>
       </div>
 
+      {/* Kişi seçici */}
+      <div className="flex flex-wrap gap-2">
+        {users.map(u => {
+          const isSelected = selectedUserId === u.id
+          const isMe = u.id === currentUserId
+          return (
+            <button
+              key={u.id}
+              onClick={() => { setSelectedUserId(u.id); setEditing(null) }}
+              className={cn(
+                'flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-medium border transition-colors',
+                isSelected
+                  ? 'bg-primary text-primary-foreground border-primary'
+                  : 'bg-card hover:bg-muted border-border text-muted-foreground'
+              )}
+            >
+              <User className="w-3.5 h-3.5" />
+              {displayName(u.email, u.full_name)}
+              {isMe && <span className="text-xs opacity-70">(Ben)</span>}
+            </button>
+          )
+        })}
+      </div>
+
+      {/* Sadece okuma uyarısı */}
+      {!isOwnCalendar && selectedUser && (
+        <div className="text-xs text-muted-foreground bg-muted/50 rounded-lg px-3 py-2">
+          <strong>{displayName(selectedUser.email, selectedUser.full_name)}</strong> adlı kişinin takvimini görüntülüyorsunuz — sadece okuma modunda.
+        </div>
+      )}
+
+      {/* Grid */}
       <div className="overflow-auto border rounded-lg bg-card">
         <div className="grid min-w-[700px]" style={{ gridTemplateColumns: '64px repeat(7, 1fr)' }}>
           {/* Header row */}
@@ -163,9 +216,7 @@ export default function CalendarPage() {
           })}
 
           {loading ? (
-            <div className="col-span-8 py-12 text-center text-sm text-muted-foreground">
-              Yükleniyor...
-            </div>
+            <div className="col-span-8 py-12 text-center text-sm text-muted-foreground">Yükleniyor...</div>
           ) : (
             HOURS.map(hour => (
               <>
@@ -184,14 +235,21 @@ export default function CalendarPage() {
                     <div
                       key={`${day}-${hour}`}
                       className={cn(
-                        'border-b border-r min-h-[40px] p-1 cursor-pointer transition-colors',
+                        'border-b border-r min-h-[40px] p-1 transition-colors',
+                        isOwnCalendar ? 'cursor-pointer' : 'cursor-default',
                         plan
-                          ? 'bg-blue-50 dark:bg-blue-950/30 hover:bg-blue-100 dark:hover:bg-blue-900/40'
-                          : 'hover:bg-muted/50'
+                          ? isOwnCalendar
+                            ? 'bg-blue-50 dark:bg-blue-950/30 hover:bg-blue-100 dark:hover:bg-blue-900/40'
+                            : 'bg-muted/60'
+                          : isOwnCalendar
+                            ? 'hover:bg-muted/50'
+                            : ''
                       )}
-                      onClick={() => { if (!isEditing) setEditing({ day, hour }) }}
+                      onClick={() => {
+                        if (isOwnCalendar && !isEditing) setEditing({ day, hour })
+                      }}
                     >
-                      {isEditing ? (
+                      {isEditing && isOwnCalendar ? (
                         <CellEditor
                           plan={plan}
                           onSave={(title, desc) => handleSave(day, hour, title, desc)}
@@ -200,7 +258,12 @@ export default function CalendarPage() {
                         />
                       ) : plan ? (
                         <div className="text-xs">
-                          <div className="font-medium text-blue-700 dark:text-blue-300 truncate">{plan.title}</div>
+                          <div className={cn(
+                            'font-medium truncate',
+                            isOwnCalendar ? 'text-blue-700 dark:text-blue-300' : 'text-foreground/80'
+                          )}>
+                            {plan.title}
+                          </div>
                           {plan.description && (
                             <div className="text-muted-foreground truncate">{plan.description}</div>
                           )}
@@ -216,7 +279,9 @@ export default function CalendarPage() {
       </div>
 
       <p className="text-xs text-muted-foreground text-center">
-        Herhangi bir hücreye tıklayarak plan ekleyin veya düzenleyin.
+        {isOwnCalendar
+          ? 'Hücreye tıklayarak plan ekleyin veya düzenleyin.'
+          : 'Kendi takviminizi düzenlemek için üstten adınızı seçin.'}
       </p>
     </div>
   )

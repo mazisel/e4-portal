@@ -14,17 +14,39 @@ export interface CalendarPlan {
   description: string | null
 }
 
+export interface CalendarUser {
+  id: string
+  email: string | null
+  full_name: string | null
+}
+
 export function useCalendar() {
   const [plans, setPlans] = useState<CalendarPlan[]>([])
+  const [users, setUsers] = useState<CalendarUser[]>([])
+  const [currentUserId, setCurrentUserId] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
   const supabase = createClient()
 
-  const fetchWeek = useCallback(async (weekStart: string) => {
+  // Tüm kullanıcı profillerini çek (kişi seçici için)
+  const fetchUsers = useCallback(async () => {
+    const { data: { user } } = await supabase.auth.getUser()
+    if (user) setCurrentUserId(user.id)
+
+    const { data } = await supabase
+      .from('profiles')
+      .select('id, email, full_name')
+      .order('full_name', { ascending: true })
+    if (data) setUsers(data as CalendarUser[])
+  }, [])
+
+  // Seçili kullanıcının belirtilen haftasını çek
+  const fetchWeek = useCallback(async (weekStart: string, targetUserId: string) => {
     setLoading(true)
     const { data, error } = await supabase
       .from('calendar_plans')
       .select('*')
       .eq('week_start', weekStart)
+      .eq('user_id', targetUserId)
       .order('day_of_week')
       .order('hour')
     if (error) {
@@ -54,10 +76,7 @@ export function useCalendar() {
       .select()
       .single()
 
-    if (error) {
-      toast.error('Plan kaydedilemedi')
-      return
-    }
+    if (error) { toast.error('Plan kaydedilemedi'); return }
     setPlans(prev => {
       const filtered = prev.filter(
         p => !(p.week_start === weekStart && p.day_of_week === dayOfWeek && p.hour === hour)
@@ -69,13 +88,10 @@ export function useCalendar() {
 
   const deletePlan = useCallback(async (id: string) => {
     const { error } = await supabase.from('calendar_plans').delete().eq('id', id)
-    if (error) {
-      toast.error('Plan silinemedi')
-      return
-    }
+    if (error) { toast.error('Plan silinemedi'); return }
     setPlans(prev => prev.filter(p => p.id !== id))
     toast.success('Plan silindi')
   }, [])
 
-  return { plans, loading, fetchWeek, upsertPlan, deletePlan }
+  return { plans, users, currentUserId, loading, fetchUsers, fetchWeek, upsertPlan, deletePlan }
 }
