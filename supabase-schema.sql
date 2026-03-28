@@ -347,46 +347,62 @@ CREATE OR REPLACE TRIGGER trg_calendar_plans_updated_at
 -- ============================================================
 -- 8. FİNANS TABLOLARI PAYLAŞIMLI ERİŞİM
 -- Tüm oturum açmış kullanıcılar finans verilerini görebilir ve düzenleyebilir.
--- user_id sadece kayıt sahibini takip etmek (audit) amacıyla tutulur.
+-- INSERT: user_id = auth.uid() (audit için kendi id'si atanır)
+-- UPDATE/DELETE: herhangi bir oturum açmış kullanıcı yapabilir
 -- ============================================================
 
+-- Yardımcı makro: tablo adı verilerek 4 ayrı policy oluşturulur
+-- (Supabase SQL'de fonksiyon yok, her tablo için tekrarlıyoruz)
+
 -- categories
-DROP POLICY IF EXISTS "categories_owner_all" ON categories;
-CREATE POLICY "categories_shared" ON categories
-  FOR ALL USING (auth.uid() IS NOT NULL)
-  WITH CHECK (auth.uid() = user_id);
+DROP POLICY IF EXISTS "categories_owner_all"   ON categories;
+DROP POLICY IF EXISTS "categories_shared"       ON categories;
+CREATE POLICY "categories_select" ON categories FOR SELECT USING (auth.uid() IS NOT NULL);
+CREATE POLICY "categories_insert" ON categories FOR INSERT WITH CHECK (auth.uid() = user_id);
+CREATE POLICY "categories_update" ON categories FOR UPDATE USING (auth.uid() IS NOT NULL);
+CREATE POLICY "categories_delete" ON categories FOR DELETE USING (auth.uid() IS NOT NULL);
 
 -- transactions
 DROP POLICY IF EXISTS "transactions_owner_all" ON transactions;
-CREATE POLICY "transactions_shared" ON transactions
-  FOR ALL USING (auth.uid() IS NOT NULL)
-  WITH CHECK (auth.uid() = user_id);
+DROP POLICY IF EXISTS "transactions_shared"    ON transactions;
+CREATE POLICY "transactions_select" ON transactions FOR SELECT USING (auth.uid() IS NOT NULL);
+CREATE POLICY "transactions_insert" ON transactions FOR INSERT WITH CHECK (auth.uid() = user_id);
+CREATE POLICY "transactions_update" ON transactions FOR UPDATE USING (auth.uid() IS NOT NULL);
+CREATE POLICY "transactions_delete" ON transactions FOR DELETE USING (auth.uid() IS NOT NULL);
 
 -- staff
 DROP POLICY IF EXISTS "staff_owner_all" ON staff;
-CREATE POLICY "staff_shared" ON staff
-  FOR ALL USING (auth.uid() IS NOT NULL)
-  WITH CHECK (auth.uid() = user_id);
+DROP POLICY IF EXISTS "staff_shared"    ON staff;
+CREATE POLICY "staff_select" ON staff FOR SELECT USING (auth.uid() IS NOT NULL);
+CREATE POLICY "staff_insert" ON staff FOR INSERT WITH CHECK (auth.uid() = user_id);
+CREATE POLICY "staff_update" ON staff FOR UPDATE USING (auth.uid() IS NOT NULL);
+CREATE POLICY "staff_delete" ON staff FOR DELETE USING (auth.uid() IS NOT NULL);
 
 -- customers
 DROP POLICY IF EXISTS "customers_owner_all" ON customers;
-CREATE POLICY "customers_shared" ON customers
-  FOR ALL USING (auth.uid() IS NOT NULL)
-  WITH CHECK (auth.uid() = user_id);
+DROP POLICY IF EXISTS "customers_shared"    ON customers;
+CREATE POLICY "customers_select" ON customers FOR SELECT USING (auth.uid() IS NOT NULL);
+CREATE POLICY "customers_insert" ON customers FOR INSERT WITH CHECK (auth.uid() = user_id);
+CREATE POLICY "customers_update" ON customers FOR UPDATE USING (auth.uid() IS NOT NULL);
+CREATE POLICY "customers_delete" ON customers FOR DELETE USING (auth.uid() IS NOT NULL);
 
 -- suppliers
 DROP POLICY IF EXISTS "suppliers_owner_all" ON suppliers;
-CREATE POLICY "suppliers_shared" ON suppliers
-  FOR ALL USING (auth.uid() IS NOT NULL)
-  WITH CHECK (auth.uid() = user_id);
+DROP POLICY IF EXISTS "suppliers_shared"    ON suppliers;
+CREATE POLICY "suppliers_select" ON suppliers FOR SELECT USING (auth.uid() IS NOT NULL);
+CREATE POLICY "suppliers_insert" ON suppliers FOR INSERT WITH CHECK (auth.uid() = user_id);
+CREATE POLICY "suppliers_update" ON suppliers FOR UPDATE USING (auth.uid() IS NOT NULL);
+CREATE POLICY "suppliers_delete" ON suppliers FOR DELETE USING (auth.uid() IS NOT NULL);
 
 -- fixed_items
 DROP POLICY IF EXISTS "fixed_items_owner_all" ON fixed_items;
-CREATE POLICY "fixed_items_shared" ON fixed_items
-  FOR ALL USING (auth.uid() IS NOT NULL)
-  WITH CHECK (auth.uid() = user_id);
+DROP POLICY IF EXISTS "fixed_items_shared"    ON fixed_items;
+CREATE POLICY "fixed_items_select" ON fixed_items FOR SELECT USING (auth.uid() IS NOT NULL);
+CREATE POLICY "fixed_items_insert" ON fixed_items FOR INSERT WITH CHECK (auth.uid() = user_id);
+CREATE POLICY "fixed_items_update" ON fixed_items FOR UPDATE USING (auth.uid() IS NOT NULL);
+CREATE POLICY "fixed_items_delete" ON fixed_items FOR DELETE USING (auth.uid() IS NOT NULL);
 
--- transaction_history (sadece okuma, herkes görebilir)
-DROP POLICY IF EXISTS "tx_history_owner_select" ON transaction_history;
-CREATE POLICY "tx_history_shared_select" ON transaction_history
-  FOR SELECT USING (auth.uid() IS NOT NULL);
+-- transaction_history (sadece okuma)
+DROP POLICY IF EXISTS "tx_history_owner_select"  ON transaction_history;
+DROP POLICY IF EXISTS "tx_history_shared_select" ON transaction_history;
+CREATE POLICY "tx_history_select" ON transaction_history FOR SELECT USING (auth.uid() IS NOT NULL);
