@@ -7,7 +7,6 @@ import { toast } from 'sonner'
 export interface CalendarPlan {
   id: string
   user_id: string
-  user_email: string | null
   week_start: string
   day_of_week: number
   hour: number
@@ -17,15 +16,11 @@ export interface CalendarPlan {
 
 export function useCalendar() {
   const [plans, setPlans] = useState<CalendarPlan[]>([])
-  const [currentUserId, setCurrentUserId] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
   const supabase = createClient()
 
   const fetchWeek = useCallback(async (weekStart: string) => {
     setLoading(true)
-    const { data: { user } } = await supabase.auth.getUser()
-    if (user) setCurrentUserId(user.id)
-
     const { data, error } = await supabase
       .from('calendar_plans')
       .select('*')
@@ -65,7 +60,7 @@ export function useCalendar() {
     }
     setPlans(prev => {
       const filtered = prev.filter(
-        p => !(p.user_id === user.id && p.week_start === weekStart && p.day_of_week === dayOfWeek && p.hour === hour)
+        p => !(p.week_start === weekStart && p.day_of_week === dayOfWeek && p.hour === hour)
       )
       return [...filtered, data as CalendarPlan]
     })
@@ -82,5 +77,5 @@ export function useCalendar() {
     toast.success('Plan silindi')
   }, [])
 
-  return { plans, currentUserId, loading, fetchWeek, upsertPlan, deletePlan }
+  return { plans, loading, fetchWeek, upsertPlan, deletePlan }
 }

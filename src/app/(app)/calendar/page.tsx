@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react'
 import { useCalendar, CalendarPlan } from '@/hooks/useCalendar'
-import { ChevronLeft, ChevronRight, X, Check, Plus, Pencil } from 'lucide-react'
+import { ChevronLeft, ChevronRight, X, Check } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
 
@@ -26,11 +26,6 @@ function formatHour(h: number): string {
   return `${String(h).padStart(2, '0')}:00`
 }
 
-function shortEmail(email: string | null): string {
-  if (!email) return '?'
-  return email.split('@')[0]
-}
-
 interface CellEditorProps {
   plan: CalendarPlan | undefined
   onSave: (title: string, description: string) => void
@@ -43,7 +38,7 @@ function CellEditor({ plan, onSave, onDelete, onClose }: CellEditorProps) {
   const [desc, setDesc] = useState(plan?.description ?? '')
 
   return (
-    <div className="flex flex-col gap-1.5 p-1">
+    <div className="flex flex-col gap-2">
       <input
         autoFocus
         className="w-full rounded border border-border bg-background px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-primary"
@@ -64,7 +59,7 @@ function CellEditor({ plan, onSave, onDelete, onClose }: CellEditorProps) {
       />
       <div className="flex gap-1 justify-end">
         {plan && (
-          <button onClick={onDelete} className="text-destructive hover:underline text-xs mr-auto">
+          <button onClick={onDelete} className="text-destructive hover:underline text-xs">
             Sil
           </button>
         )}
@@ -85,7 +80,7 @@ function CellEditor({ plan, onSave, onDelete, onClose }: CellEditorProps) {
 export default function CalendarPage() {
   const [weekStart, setWeekStart] = useState<Date>(() => getMondayOf(new Date()))
   const [editing, setEditing] = useState<{ day: number; hour: number } | null>(null)
-  const { plans, currentUserId, loading, fetchWeek, upsertPlan, deletePlan } = useCalendar()
+  const { plans, loading, fetchWeek, upsertPlan, deletePlan } = useCalendar()
 
   const weekKey = formatWeekStart(weekStart)
 
@@ -93,16 +88,10 @@ export default function CalendarPage() {
     fetchWeek(weekKey)
   }, [weekKey, fetchWeek])
 
-  const getPlans = useCallback(
+  const getPlan = useCallback(
     (day: number, hour: number) =>
-      plans.filter(p => p.day_of_week === day && p.hour === hour),
+      plans.find(p => p.day_of_week === day && p.hour === hour),
     [plans]
-  )
-
-  const getMyPlan = useCallback(
-    (day: number, hour: number) =>
-      plans.find(p => p.day_of_week === day && p.hour === hour && p.user_id === currentUserId),
-    [plans, currentUserId]
   )
 
   const prevWeek = () => setWeekStart(d => { const n = new Date(d); n.setDate(n.getDate() - 7); return n })
@@ -124,7 +113,7 @@ export default function CalendarPage() {
   }
 
   const handleDelete = async (day: number, hour: number) => {
-    const plan = getMyPlan(day, hour)
+    const plan = getPlan(day, hour)
     if (plan) await deletePlan(plan.id)
     setEditing(null)
   }
@@ -186,66 +175,37 @@ export default function CalendarPage() {
                 >
                   {formatHour(hour)}
                 </div>
-
                 {DAYS.map((_, dayIdx) => {
                   const day = dayIdx + 1
-                  const cellPlans = getPlans(day, hour)
-                  const myPlan = getMyPlan(day, hour)
+                  const plan = getPlan(day, hour)
                   const isEditing = editing?.day === day && editing?.hour === hour
 
                   return (
                     <div
                       key={`${day}-${hour}`}
-                      className="border-b border-r min-h-[44px] p-1 group relative"
+                      className={cn(
+                        'border-b border-r min-h-[40px] p-1 cursor-pointer transition-colors',
+                        plan
+                          ? 'bg-blue-50 dark:bg-blue-950/30 hover:bg-blue-100 dark:hover:bg-blue-900/40'
+                          : 'hover:bg-muted/50'
+                      )}
+                      onClick={() => { if (!isEditing) setEditing({ day, hour }) }}
                     >
                       {isEditing ? (
                         <CellEditor
-                          plan={myPlan}
+                          plan={plan}
                           onSave={(title, desc) => handleSave(day, hour, title, desc)}
                           onDelete={() => handleDelete(day, hour)}
                           onClose={() => setEditing(null)}
                         />
-                      ) : (
-                        <>
-                          {/* Diğer kullanıcıların planları */}
-                          {cellPlans
-                            .filter(p => p.user_id !== currentUserId)
-                            .map(p => (
-                              <div
-                                key={p.id}
-                                className="text-xs rounded px-1.5 py-0.5 mb-0.5 bg-muted text-muted-foreground"
-                              >
-                                <span className="font-medium text-foreground/70">{shortEmail(p.user_email)}</span>
-                                {' · '}
-                                <span className="truncate">{p.title}</span>
-                              </div>
-                            ))}
-
-                          {/* Kendi planım */}
-                          {myPlan ? (
-                            <div
-                              className="text-xs rounded px-1.5 py-0.5 bg-blue-100 dark:bg-blue-900/40 text-blue-800 dark:text-blue-200 cursor-pointer flex items-start justify-between gap-1"
-                              onClick={() => setEditing({ day, hour })}
-                            >
-                              <div className="min-w-0">
-                                <div className="font-medium truncate">{myPlan.title}</div>
-                                {myPlan.description && (
-                                  <div className="text-blue-600/70 dark:text-blue-300/70 truncate">{myPlan.description}</div>
-                                )}
-                              </div>
-                              <Pencil className="w-2.5 h-2.5 shrink-0 mt-0.5 opacity-60" />
-                            </div>
-                          ) : (
-                            /* Boş hücre: + butonu */
-                            <button
-                              className="absolute inset-0 w-full h-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
-                              onClick={() => setEditing({ day, hour })}
-                            >
-                              <Plus className="w-3.5 h-3.5 text-muted-foreground" />
-                            </button>
+                      ) : plan ? (
+                        <div className="text-xs">
+                          <div className="font-medium text-blue-700 dark:text-blue-300 truncate">{plan.title}</div>
+                          {plan.description && (
+                            <div className="text-muted-foreground truncate">{plan.description}</div>
                           )}
-                        </>
-                      )}
+                        </div>
+                      ) : null}
                     </div>
                   )
                 })}
@@ -256,7 +216,7 @@ export default function CalendarPage() {
       </div>
 
       <p className="text-xs text-muted-foreground text-center">
-        Mavi plan sizin — düzenlemek için tıklayın. Gri planlar diğer ekip üyelerine ait.
+        Herhangi bir hücreye tıklayarak plan ekleyin veya düzenleyin.
       </p>
     </div>
   )
