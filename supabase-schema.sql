@@ -344,6 +344,16 @@ CREATE OR REPLACE TRIGGER trg_calendar_plans_updated_at
   BEFORE UPDATE ON calendar_plans
   FOR EACH ROW EXECUTE FUNCTION update_updated_at();
 
+-- user_email kolonu (kimin planı olduğunu göstermek için)
+ALTER TABLE calendar_plans ADD COLUMN IF NOT EXISTS user_email text;
+
+-- Takvim paylaşımlı erişim: herkes görebilir, sadece kendi planını düzenleyebilir
+DROP POLICY IF EXISTS "calendar_plans_owner_all" ON calendar_plans;
+CREATE POLICY "calendar_plans_select" ON calendar_plans FOR SELECT USING (auth.uid() IS NOT NULL);
+CREATE POLICY "calendar_plans_insert" ON calendar_plans FOR INSERT WITH CHECK (auth.uid() = user_id);
+CREATE POLICY "calendar_plans_update" ON calendar_plans FOR UPDATE USING (auth.uid() = user_id);
+CREATE POLICY "calendar_plans_delete" ON calendar_plans FOR DELETE USING (auth.uid() = user_id);
+
 -- ============================================================
 -- 8. FİNANS TABLOLARI PAYLAŞIMLI ERİŞİM
 -- Tüm oturum açmış kullanıcılar finans verilerini görebilir ve düzenleyebilir.
