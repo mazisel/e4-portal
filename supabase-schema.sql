@@ -347,6 +347,77 @@ CREATE OR REPLACE TRIGGER trg_calendar_plans_updated_at
 -- user_email kolonu (kimin planı olduğunu göstermek için)
 ALTER TABLE calendar_plans ADD COLUMN IF NOT EXISTS user_email text;
 
+-- ============================================================
+-- 9. KASA, BORÇLAR, AVANSLAR
+-- ============================================================
+
+-- 9a. KASA
+CREATE TABLE IF NOT EXISTS kasa_entries (
+  id          uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id     uuid NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+  type        text NOT NULL CHECK (type IN ('in', 'out')),
+  amount      numeric(12,2) NOT NULL CHECK (amount > 0),
+  description text NOT NULL,
+  entry_date  date NOT NULL DEFAULT CURRENT_DATE,
+  notes       text,
+  created_at  timestamptz NOT NULL DEFAULT now(),
+  updated_at  timestamptz NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS idx_kasa_user ON kasa_entries(user_id, entry_date DESC);
+ALTER TABLE kasa_entries ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "kasa_select" ON kasa_entries FOR SELECT USING (auth.uid() IS NOT NULL);
+CREATE POLICY "kasa_insert" ON kasa_entries FOR INSERT WITH CHECK (auth.uid() = user_id);
+CREATE POLICY "kasa_update" ON kasa_entries FOR UPDATE USING (auth.uid() IS NOT NULL);
+CREATE POLICY "kasa_delete" ON kasa_entries FOR DELETE USING (auth.uid() IS NOT NULL);
+CREATE OR REPLACE TRIGGER trg_kasa_updated_at
+  BEFORE UPDATE ON kasa_entries FOR EACH ROW EXECUTE FUNCTION update_updated_at();
+
+-- 9b. BORÇLAR
+CREATE TABLE IF NOT EXISTS debts (
+  id           uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id      uuid NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+  type         text NOT NULL CHECK (type IN ('payable', 'receivable')),
+  contact_name text NOT NULL,
+  amount       numeric(12,2) NOT NULL CHECK (amount > 0),
+  description  text,
+  due_date     date,
+  status       text NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'paid')),
+  notes        text,
+  created_at   timestamptz NOT NULL DEFAULT now(),
+  updated_at   timestamptz NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS idx_debts_user ON debts(user_id);
+ALTER TABLE debts ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "debts_select" ON debts FOR SELECT USING (auth.uid() IS NOT NULL);
+CREATE POLICY "debts_insert" ON debts FOR INSERT WITH CHECK (auth.uid() = user_id);
+CREATE POLICY "debts_update" ON debts FOR UPDATE USING (auth.uid() IS NOT NULL);
+CREATE POLICY "debts_delete" ON debts FOR DELETE USING (auth.uid() IS NOT NULL);
+CREATE OR REPLACE TRIGGER trg_debts_updated_at
+  BEFORE UPDATE ON debts FOR EACH ROW EXECUTE FUNCTION update_updated_at();
+
+-- 9c. AVANSLAR
+CREATE TABLE IF NOT EXISTS advances (
+  id           uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id      uuid NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+  staff_id     uuid REFERENCES staff(id) ON DELETE SET NULL,
+  person_name  text NOT NULL,
+  amount       numeric(12,2) NOT NULL CHECK (amount > 0),
+  description  text,
+  advance_date date NOT NULL DEFAULT CURRENT_DATE,
+  status       text NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'returned', 'deducted')),
+  notes        text,
+  created_at   timestamptz NOT NULL DEFAULT now(),
+  updated_at   timestamptz NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS idx_advances_user ON advances(user_id);
+ALTER TABLE advances ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "advances_select" ON advances FOR SELECT USING (auth.uid() IS NOT NULL);
+CREATE POLICY "advances_insert" ON advances FOR INSERT WITH CHECK (auth.uid() = user_id);
+CREATE POLICY "advances_update" ON advances FOR UPDATE USING (auth.uid() IS NOT NULL);
+CREATE POLICY "advances_delete" ON advances FOR DELETE USING (auth.uid() IS NOT NULL);
+CREATE OR REPLACE TRIGGER trg_advances_updated_at
+  BEFORE UPDATE ON advances FOR EACH ROW EXECUTE FUNCTION update_updated_at();
+
 -- Takvim paylaşımlı erişim: herkes görebilir, sadece kendi planını düzenleyebilir
 DROP POLICY IF EXISTS "calendar_plans_owner_all" ON calendar_plans;
 CREATE POLICY "calendar_plans_select" ON calendar_plans FOR SELECT USING (auth.uid() IS NOT NULL);

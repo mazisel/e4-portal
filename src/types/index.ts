@@ -140,3 +140,61 @@ export const PAYMENT_METHOD_LABELS: Record<PaymentMethod, string> = {
   bank_transfer: 'Havale/EFT',
   credit_card: 'Kredi Kartı',
 }
+
+export type KasaEntryType = 'in' | 'out'
+
+export interface KasaEntry {
+  id: string
+  user_id: string
+  type: KasaEntryType
+  amount: number
+  description: string
+  entry_date: string
+  notes: string | null
+  created_at: string
+  updated_at: string
+}
+
+export type DebtType = 'payable' | 'receivable'
+export type DebtStatus = 'pending' | 'paid'
+
+export interface Debt {
+  id: string
+  user_id: string
+  type: DebtType
+  contact_name: string
+  amount: number
+  description: string | null
+  due_date: string | null
+  status: DebtStatus
+  notes: string | null
+  created_at: string
+  updated_at: string
+}
+
+export type AdvanceStatus = 'pending' | 'returned' | 'deducted'
+
+export interface Advance {
+  id: string
+  user_id: string
+  staff_id: string | null
+  person_name: string
+  amount: number
+  description: string | null
+  advance_date: string
+  status: AdvanceStatus
+  notes: string | null
+  created_at: string
+  updated_at: string
+}
+
+export const DEBT_TYPE_LABELS: Record<DebtType, string> = {
+  payable: 'Borcumuz',
+  receivable: 'Alacağımız',
+}
+
+export const ADVANCE_STATUS_LABELS: Record<AdvanceStatus, string> = {
+  pending: 'Bekliyor',
+  returned: 'Geri Ödendi',
+  deducted: 'Maaştan Kesildi',
+}
