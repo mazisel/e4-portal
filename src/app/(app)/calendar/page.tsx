@@ -1,0 +1,238 @@
+'use client'
+
+import { useState, useEffect, useCallback } from 'react'
+import { useCalendar, CalendarPlan } from '@/hooks/useCalendar'
+import { ChevronLeft, ChevronRight, X, Check } from 'lucide-react'
+import { Button } from '@/components/ui/button'
+import { cn } from '@/lib/utils'
+
+const DAYS = ['Pazartesi', 'Salı', 'Çarşamba', 'Perşembe', 'Cuma', 'Cumartesi', 'Pazar']
+const HOURS = Array.from({ length: 16 }, (_, i) => i + 7) // 07:00 - 22:00
+
+function getMondayOf(date: Date): Date {
+  const d = new Date(date)
+  const day = d.getDay()
+  const diff = day === 0 ? -6 : 1 - day
+  d.setDate(d.getDate() + diff)
+  d.setHours(0, 0, 0, 0)
+  return d
+}
+
+function formatWeekStart(date: Date): string {
+  return date.toISOString().split('T')[0]
+}
+
+function formatHour(h: number): string {
+  return `${String(h).padStart(2, '0')}:00`
+}
+
+interface CellEditorProps {
+  plan: CalendarPlan | undefined
+  onSave: (title: string, description: string) => void
+  onDelete: () => void
+  onClose: () => void
+}
+
+function CellEditor({ plan, onSave, onDelete, onClose }: CellEditorProps) {
+  const [title, setTitle] = useState(plan?.title ?? '')
+  const [desc, setDesc] = useState(plan?.description ?? '')
+
+  return (
+    <div className="flex flex-col gap-2">
+      <input
+        autoFocus
+        className="w-full rounded border border-border bg-background px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-primary"
+        placeholder="Plan başlığı"
+        value={title}
+        onChange={e => setTitle(e.target.value)}
+        onKeyDown={e => {
+          if (e.key === 'Enter' && title.trim()) onSave(title.trim(), desc)
+          if (e.key === 'Escape') onClose()
+        }}
+      />
+      <textarea
+        className="w-full rounded border border-border bg-background px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-primary resize-none"
+        placeholder="Açıklama (opsiyonel)"
+        rows={2}
+        value={desc}
+        onChange={e => setDesc(e.target.value)}
+      />
+      <div className="flex gap-1 justify-end">
+        {plan && (
+          <button
+            onClick={onDelete}
+            className="text-destructive hover:underline text-xs"
+          >
+            Sil
+          </button>
+        )}
+        <button onClick={onClose} className="p-1 rounded hover:bg-muted">
+          <X className="w-3 h-3" />
+        </button>
+        <button
+          onClick={() => title.trim() && onSave(title.trim(), desc)}
+          className="p-1 rounded bg-primary text-primary-foreground hover:opacity-90"
+        >
+          <Check className="w-3 h-3" />
+        </button>
+      </div>
+    </div>
+  )
+}
+
+export default function CalendarPage() {
+  const [weekStart, setWeekStart] = useState<Date>(() => getMondayOf(new Date()))
+  const [editing, setEditing] = useState<{ day: number; hour: number } | null>(null)
+  const { plans, loading, fetchWeek, upsertPlan, deletePlan } = useCalendar()
+
+  const weekKey = formatWeekStart(weekStart)
+
+  useEffect(() => {
+    fetchWeek(weekKey)
+  }, [weekKey, fetchWeek])
+
+  const getPlan = useCallback(
+    (day: number, hour: number) =>
+      plans.find(p => p.day_of_week === day && p.hour === hour),
+    [plans]
+  )
+
+  const prevWeek = () => setWeekStart(d => { const n = new Date(d); n.setDate(n.getDate() - 7); return n })
+  const nextWeek = () => setWeekStart(d => { const n = new Date(d); n.setDate(n.getDate() + 7); return n })
+  const goToday = () => setWeekStart(getMondayOf(new Date()))
+
+  const weekLabel = (() => {
+    const end = new Date(weekStart)
+    end.setDate(end.getDate() + 6)
+    const fmt = (d: Date) => d.toLocaleDateString('tr-TR', { day: 'numeric', month: 'long' })
+    return `${fmt(weekStart)} – ${fmt(end)}, ${weekStart.getFullYear()}`
+  })()
+
+  const today = getMondayOf(new Date())
+  const isCurrentWeek = weekKey === formatWeekStart(today)
+
+  const handleSave = async (day: number, hour: number, title: string, desc: string) => {
+    await upsertPlan(weekKey, day, hour, title, desc)
+    setEditing(null)
+  }
+
+  const handleDelete = async (day: number, hour: number) => {
+    const plan = getPlan(day, hour)
+    if (plan) await deletePlan(plan.id)
+    setEditing(null)
+  }
+
+  return (
+    <div className="space-y-4">
+      {/* Header */}
+      <div className="flex items-center justify-between flex-wrap gap-2">
+        <div>
+          <h1 className="text-2xl font-bold">Takvim</h1>
+          <p className="text-sm text-muted-foreground">{weekLabel}</p>
+        </div>
+        <div className="flex items-center gap-2">
+          {!isCurrentWeek && (
+            <Button variant="outline" size="sm" onClick={goToday}>
+              Bu hafta
+            </Button>
+          )}
+          <Button variant="outline" size="icon" onClick={prevWeek}>
+            <ChevronLeft className="w-4 h-4" />
+          </Button>
+          <Button variant="outline" size="icon" onClick={nextWeek}>
+            <ChevronRight className="w-4 h-4" />
+          </Button>
+        </div>
+      </div>
+
+      {/* Grid */}
+      <div className="overflow-auto border rounded-lg bg-card">
+        <div
+          className="grid min-w-[700px]"
+          style={{ gridTemplateColumns: '64px repeat(7, 1fr)' }}
+        >
+          {/* Header row */}
+          <div className="border-b border-r px-2 py-2 text-xs text-muted-foreground" />
+          {DAYS.map((day, i) => {
+            const dayDate = new Date(weekStart)
+            dayDate.setDate(dayDate.getDate() + i)
+            const isToday = dayDate.toDateString() === new Date().toDateString()
+            return (
+              <div
+                key={day}
+                className={cn(
+                  'border-b border-r px-2 py-2 text-center text-xs font-medium',
+                  isToday && 'bg-primary/10 text-primary'
+                )}
+              >
+                <div>{day}</div>
+                <div className="text-muted-foreground font-normal">
+                  {dayDate.toLocaleDateString('tr-TR', { day: 'numeric', month: 'short' })}
+                </div>
+              </div>
+            )
+          })}
+
+          {/* Hour rows */}
+          {loading ? (
+            <div className="col-span-8 py-12 text-center text-sm text-muted-foreground">
+              Yükleniyor...
+            </div>
+          ) : (
+            HOURS.map(hour => (
+              <>
+                {/* Hour label */}
+                <div
+                  key={`h-${hour}`}
+                  className="border-b border-r px-2 py-1 text-xs text-muted-foreground text-right pr-3 leading-8"
+                >
+                  {formatHour(hour)}
+                </div>
+
+                {/* Day cells */}
+                {DAYS.map((_, dayIdx) => {
+                  const day = dayIdx + 1
+                  const plan = getPlan(day, hour)
+                  const isEditing = editing?.day === day && editing?.hour === hour
+
+                  return (
+                    <div
+                      key={`${day}-${hour}`}
+                      className={cn(
+                        'border-b border-r min-h-[40px] p-1 cursor-pointer transition-colors',
+                        plan ? 'bg-blue-50 dark:bg-blue-950/30 hover:bg-blue-100 dark:hover:bg-blue-900/40' : 'hover:bg-muted/50'
+                      )}
+                      onClick={() => {
+                        if (!isEditing) setEditing({ day, hour })
+                      }}
+                    >
+                      {isEditing ? (
+                        <CellEditor
+                          plan={plan}
+                          onSave={(title, desc) => handleSave(day, hour, title, desc)}
+                          onDelete={() => handleDelete(day, hour)}
+                          onClose={() => setEditing(null)}
+                        />
+                      ) : plan ? (
+                        <div className="text-xs">
+                          <div className="font-medium text-blue-700 dark:text-blue-300 truncate">{plan.title}</div>
+                          {plan.description && (
+                            <div className="text-muted-foreground truncate">{plan.description}</div>
+                          )}
+                        </div>
+                      ) : null}
+                    </div>
+                  )
+                })}
+              </>
+            ))
+          )}
+        </div>
+      </div>
+
+      <p className="text-xs text-muted-foreground text-center">
+        Herhangi bir hücreye tıklayarak plan ekleyin veya düzenleyin.
+      </p>
+    </div>
+  )
+}

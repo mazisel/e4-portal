@@ -272,3 +272,121 @@ ALTER TABLE transactions ADD COLUMN IF NOT EXISTS supplier_id uuid REFERENCES su
 
 -- fixed_items tablosuna supplier_id kolonu ekle (opsiyonel, sabit giderde tedarikçi bağlantısı için)
 ALTER TABLE fixed_items ADD COLUMN IF NOT EXISTS supplier_id uuid REFERENCES suppliers(id) ON DELETE SET NULL;
+
+-- ============================================================
+-- 6. PROFİLLER (Kullanıcı yetkileri)
+-- ============================================================
+
+CREATE TABLE IF NOT EXISTS profiles (
+  id                 uuid PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
+  full_name          text,
+  can_access_finance boolean NOT NULL DEFAULT false,
+  created_at         timestamptz NOT NULL DEFAULT now(),
+  updated_at         timestamptz NOT NULL DEFAULT now()
+);
+
+ALTER TABLE profiles ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "profiles_owner_select" ON profiles;
+CREATE POLICY "profiles_owner_select" ON profiles
+  FOR SELECT USING (auth.uid() = id);
+
+DROP POLICY IF EXISTS "profiles_owner_update" ON profiles;
+CREATE POLICY "profiles_owner_update" ON profiles
+  FOR UPDATE USING (auth.uid() = id)
+  WITH CHECK (auth.uid() = id);
+
+CREATE OR REPLACE TRIGGER trg_profiles_updated_at
+  BEFORE UPDATE ON profiles
+  FOR EACH ROW EXECUTE FUNCTION update_updated_at();
+
+-- Yeni kullanıcı kaydolduğunda otomatik profil oluştur
+CREATE OR REPLACE FUNCTION create_profile_for_user()
+RETURNS TRIGGER AS $$
+BEGIN
+  INSERT INTO profiles (id) VALUES (NEW.id) ON CONFLICT DO NOTHING;
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+DROP TRIGGER IF EXISTS trg_create_profile ON auth.users;
+CREATE TRIGGER trg_create_profile
+  AFTER INSERT ON auth.users
+  FOR EACH ROW EXECUTE FUNCTION create_profile_for_user();
+
+-- ============================================================
+-- 7. TAKVİM PLANLARI (Personel haftalık planlayıcı)
+-- ============================================================
+
+CREATE TABLE IF NOT EXISTS calendar_plans (
+  id           uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id      uuid NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+  week_start   date NOT NULL, -- o haftanın Pazartesi tarihi
+  day_of_week  integer NOT NULL CHECK (day_of_week BETWEEN 1 AND 7), -- 1=Pazartesi, 7=Pazar
+  hour         integer NOT NULL CHECK (hour BETWEEN 0 AND 23),
+  title        text NOT NULL,
+  description  text,
+  created_at   timestamptz NOT NULL DEFAULT now(),
+  updated_at   timestamptz NOT NULL DEFAULT now(),
+  UNIQUE (user_id, week_start, day_of_week, hour)
+);
+
+CREATE INDEX IF NOT EXISTS idx_calendar_plans_user_week ON calendar_plans(user_id, week_start);
+
+ALTER TABLE calendar_plans ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "calendar_plans_owner_all" ON calendar_plans;
+CREATE POLICY "calendar_plans_owner_all" ON calendar_plans
+  FOR ALL USING (auth.uid() = user_id)
+  WITH CHECK (auth.uid() = user_id);
+
+CREATE OR REPLACE TRIGGER trg_calendar_plans_updated_at
+  BEFORE UPDATE ON calendar_plans
+  FOR EACH ROW EXECUTE FUNCTION update_updated_at();
+
+-- ============================================================
+-- 8. FİNANS TABLOLARI PAYLAŞIMLI ERİŞİM
+-- Tüm oturum açmış kullanıcılar finans verilerini görebilir ve düzenleyebilir.
+-- user_id sadece kayıt sahibini takip etmek (audit) amacıyla tutulur.
+-- ============================================================
+
+-- categories
+DROP POLICY IF EXISTS "categories_owner_all" ON categories;
+CREATE POLICY "categories_shared" ON categories
+  FOR ALL USING (auth.uid() IS NOT NULL)
+  WITH CHECK (auth.uid() = user_id);
+
+-- transactions
+DROP POLICY IF EXISTS "transactions_owner_all" ON transactions;
+CREATE POLICY "transactions_shared" ON transactions
+  FOR ALL USING (auth.uid() IS NOT NULL)
+  WITH CHECK (auth.uid() = user_id);
+
+-- staff
+DROP POLICY IF EXISTS "staff_owner_all" ON staff;
+CREATE POLICY "staff_shared" ON staff
+  FOR ALL USING (auth.uid() IS NOT NULL)
+  WITH CHECK (auth.uid() = user_id);
+
+-- customers
+DROP POLICY IF EXISTS "customers_owner_all" ON customers;
+CREATE POLICY "customers_shared" ON customers
+  FOR ALL USING (auth.uid() IS NOT NULL)
+  WITH CHECK (auth.uid() = user_id);
+
+-- suppliers
+DROP POLICY IF EXISTS "suppliers_owner_all" ON suppliers;
+CREATE POLICY "suppliers_shared" ON suppliers
+  FOR ALL USING (auth.uid() IS NOT NULL)
+  WITH CHECK (auth.uid() = user_id);
+
+-- fixed_items
+DROP POLICY IF EXISTS "fixed_items_owner_all" ON fixed_items;
+CREATE POLICY "fixed_items_shared" ON fixed_items
+  FOR ALL USING (auth.uid() IS NOT NULL)
+  WITH CHECK (auth.uid() = user_id);
+
+-- transaction_history (sadece okuma, herkes görebilir)
+DROP POLICY IF EXISTS "tx_history_owner_select" ON transaction_history;
+CREATE POLICY "tx_history_shared_select" ON transaction_history
+  FOR SELECT USING (auth.uid() IS NOT NULL);
