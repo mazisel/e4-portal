@@ -186,7 +186,7 @@ BEGIN
   VALUES (OLD.id, auth.uid(), to_jsonb(OLD), to_jsonb(NEW));
   RETURN NEW;
 END;
-$$ LANGUAGE plpgsql;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
 
 DROP TRIGGER IF EXISTS trg_transaction_history ON transactions;
 CREATE TRIGGER trg_transaction_history
