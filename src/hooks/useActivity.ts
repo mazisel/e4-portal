@@ -26,15 +26,25 @@ export function useActivity() {
 
   const fetchDay = useCallback(async (date: string) => {
     setLoading(true)
-    const { data, error } = await supabase
-      .from('activity_logs')
-      .select('*, profile:profiles(full_name, email)')
-      .eq('date', date)
-      .order('created_at', { ascending: true })
+    const [{ data: logsData, error }, { data: profilesData }] = await Promise.all([
+      supabase
+        .from('activity_logs')
+        .select('*')
+        .eq('date', date)
+        .order('created_at', { ascending: true }),
+      supabase
+        .from('profiles')
+        .select('id, full_name, email'),
+    ])
     if (error) {
       toast.error('Aktiviteler yüklenemedi')
     } else {
-      setLogs((data ?? []) as ActivityLog[])
+      const profileMap = Object.fromEntries((profilesData ?? []).map(p => [p.id, p]))
+      const merged = (logsData ?? []).map(l => ({
+        ...l,
+        profile: profileMap[l.user_id] ?? null,
+      }))
+      setLogs(merged as ActivityLog[])
     }
     setLoading(false)
   }, [])
@@ -58,7 +68,7 @@ export function useActivity() {
         title,
         description: description || null,
       })
-      .select('*, profile:profiles(full_name, email)')
+      .select('*')
       .single()
 
     if (error) {
@@ -66,7 +76,12 @@ export function useActivity() {
       toast.error('Aktivite kaydedilemedi')
       return
     }
-    setLogs(prev => [...prev, data as ActivityLog])
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('id, full_name, email')
+      .eq('id', user.id)
+      .single()
+    setLogs(prev => [...prev, { ...data, profile } as ActivityLog])
     toast.success('Aktivite kaydedildi')
   }, [])
 
@@ -80,14 +95,14 @@ export function useActivity() {
       .from('activity_logs')
       .update({ duration_minutes: durationMinutes, title, description: description || null })
       .eq('id', id)
-      .select('*, profile:profiles(full_name, email)')
+      .select('*')
       .single()
 
     if (error) {
       toast.error('Aktivite güncellenemedi')
       return
     }
-    setLogs(prev => prev.map(l => l.id === id ? data as ActivityLog : l))
+    setLogs(prev => prev.map(l => l.id === id ? { ...data, profile: l.profile } as ActivityLog : l))
     toast.success('Aktivite güncellendi')
   }, [])
 
