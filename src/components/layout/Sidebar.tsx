@@ -3,7 +3,7 @@
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import {
-  Home, CalendarDays,
+  Home, CalendarDays, ClipboardList,
   LayoutDashboard, ArrowLeftRight, Tag, BarChart3,
   Users, Building2, SlidersHorizontal, Truck, X,
 } from 'lucide-react'
@@ -13,6 +13,7 @@ import { useAuth } from '@/contexts/AuthContext'
 const topItems = [
   { href: '/home', label: 'Ana Sayfa', icon: Home },
   { href: '/calendar', label: 'Takvim', icon: CalendarDays },
+  { href: '/activity', label: 'Aktivite', icon: ClipboardList },
 ]
 
 const financeItems = [

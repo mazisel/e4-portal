@@ -2,7 +2,7 @@
 
 import Link from 'next/link'
 import { useAuth } from '@/contexts/AuthContext'
-import { TrendingUp, CalendarDays, Lock } from 'lucide-react'
+import { TrendingUp, CalendarDays, ClipboardList, Lock } from 'lucide-react'
 
 export default function HomePage() {
   const { user, profile } = useAuth()
@@ -23,6 +23,15 @@ export default function HomePage() {
       description: 'Haftalık planınızı saatlik olarak düzenleyin',
       icon: CalendarDays,
       color: 'from-blue-500 to-indigo-600',
+      locked: false,
+      lockMsg: '',
+    },
+    {
+      href: '/activity',
+      label: 'Aktivite',
+      description: 'Günlük çalışmalarınızı ve harcadığınız süreyi kaydedin',
+      icon: ClipboardList,
+      color: 'from-violet-500 to-purple-600',
       locked: false,
       lockMsg: '',
     },

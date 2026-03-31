@@ -508,3 +508,33 @@ CREATE POLICY "fixed_items_delete" ON fixed_items FOR DELETE USING (auth.uid() I
 DROP POLICY IF EXISTS "tx_history_owner_select"  ON transaction_history;
 DROP POLICY IF EXISTS "tx_history_shared_select" ON transaction_history;
 CREATE POLICY "tx_history_select" ON transaction_history FOR SELECT USING (auth.uid() IS NOT NULL);
+
+-- ============================================================
+-- 10. AKTİVİTE KAYITLARI (Günlük çalışma logu)
+-- ============================================================
+
+CREATE TABLE IF NOT EXISTS activity_logs (
+  id               uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id          uuid NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+  user_email       text,
+  date             date NOT NULL,
+  duration_minutes integer NOT NULL DEFAULT 60,
+  title            text NOT NULL,
+  description      text,
+  created_at       timestamptz NOT NULL DEFAULT now(),
+  updated_at       timestamptz NOT NULL DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS idx_activity_logs_user_date ON activity_logs(user_id, date);
+CREATE INDEX IF NOT EXISTS idx_activity_logs_date ON activity_logs(date);
+
+ALTER TABLE activity_logs ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "activity_select" ON activity_logs FOR SELECT USING (auth.uid() IS NOT NULL);
+CREATE POLICY "activity_insert" ON activity_logs FOR INSERT WITH CHECK (auth.uid() = user_id);
+CREATE POLICY "activity_update" ON activity_logs FOR UPDATE USING (auth.uid() = user_id);
+CREATE POLICY "activity_delete" ON activity_logs FOR DELETE USING (auth.uid() = user_id);
+
+CREATE OR REPLACE TRIGGER trg_activity_logs_updated_at
+  BEFORE UPDATE ON activity_logs
+  FOR EACH ROW EXECUTE FUNCTION update_updated_at();
