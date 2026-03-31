@@ -10,6 +10,7 @@ export interface CalendarPlan {
   week_start: string
   day_of_week: number
   hour: number
+  hour_end: number
   title: string
   description: string | null
 }
@@ -27,7 +28,6 @@ export function useCalendar() {
   const [loading, setLoading] = useState(false)
   const supabase = createClient()
 
-  // Tüm kullanıcı profillerini çek (kişi seçici için)
   const fetchUsers = useCallback(async () => {
     const { data: { user } } = await supabase.auth.getUser()
     if (user) setCurrentUserId(user.id)
@@ -39,7 +39,6 @@ export function useCalendar() {
     if (data) setUsers(data as CalendarUser[])
   }, [])
 
-  // Seçili kullanıcının belirtilen haftasını çek
   const fetchWeek = useCallback(async (weekStart: string, targetUserId: string) => {
     setLoading(true)
     const { data, error } = await supabase
@@ -57,34 +56,57 @@ export function useCalendar() {
     setLoading(false)
   }, [])
 
-  const upsertPlan = useCallback(async (
+  // hourStart dahil, hourEnd hariç (exclusive). Örn: 9-11 = 09:00-11:00 (2 saat)
+  const savePlan = useCallback(async (
     weekStart: string,
     dayOfWeek: number,
-    hour: number,
+    hourStart: number,
+    hourEnd: number,
     title: string,
     description: string
   ) => {
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) return
 
+    // Çakışan planları bul ve sil
+    const overlapping = plans.filter(p =>
+      p.week_start === weekStart &&
+      p.day_of_week === dayOfWeek &&
+      p.hour < hourEnd &&
+      p.hour_end > hourStart
+    )
+
+    if (overlapping.length > 0) {
+      const { error: delError } = await supabase
+        .from('calendar_plans')
+        .delete()
+        .in('id', overlapping.map(p => p.id))
+      if (delError) { toast.error('Plan kaydedilemedi'); return }
+    }
+
     const { data, error } = await supabase
       .from('calendar_plans')
-      .upsert(
-        { user_id: user.id, user_email: user.email, week_start: weekStart, day_of_week: dayOfWeek, hour, title, description },
-        { onConflict: 'user_id,week_start,day_of_week,hour' }
-      )
+      .insert({
+        user_id: user.id,
+        user_email: user.email,
+        week_start: weekStart,
+        day_of_week: dayOfWeek,
+        hour: hourStart,
+        hour_end: hourEnd,
+        title,
+        description,
+      })
       .select()
       .single()
 
     if (error) { toast.error('Plan kaydedilemedi'); return }
+
     setPlans(prev => {
-      const filtered = prev.filter(
-        p => !(p.week_start === weekStart && p.day_of_week === dayOfWeek && p.hour === hour)
-      )
+      const filtered = prev.filter(p => !overlapping.some(o => o.id === p.id))
       return [...filtered, data as CalendarPlan]
     })
     toast.success('Plan kaydedildi')
-  }, [])
+  }, [plans])
 
   const deletePlan = useCallback(async (id: string) => {
     const { error } = await supabase.from('calendar_plans').delete().eq('id', id)
@@ -93,5 +115,5 @@ export function useCalendar() {
     toast.success('Plan silindi')
   }, [])
 
-  return { plans, users, currentUserId, loading, fetchUsers, fetchWeek, upsertPlan, deletePlan }
+  return { plans, users, currentUserId, loading, fetchUsers, fetchWeek, savePlan, deletePlan }
 }

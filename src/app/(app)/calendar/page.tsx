@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef, Fragment } from 'react'
 import { useCalendar, CalendarPlan } from '@/hooks/useCalendar'
 import { ChevronLeft, ChevronRight, X, Check, User } from 'lucide-react'
 import { Button } from '@/components/ui/button'
@@ -32,19 +32,31 @@ function displayName(email: string | null, fullName: string | null): string {
   return '?'
 }
 
+interface EditingState {
+  day: number
+  startHour: number
+  endHour: number // inclusive
+  plan?: CalendarPlan
+}
+
 interface CellEditorProps {
-  plan: CalendarPlan | undefined
+  editing: EditingState
   onSave: (title: string, description: string) => void
   onDelete: () => void
   onClose: () => void
 }
 
-function CellEditor({ plan, onSave, onDelete, onClose }: CellEditorProps) {
-  const [title, setTitle] = useState(plan?.title ?? '')
-  const [desc, setDesc] = useState(plan?.description ?? '')
+function CellEditor({ editing, onSave, onDelete, onClose }: CellEditorProps) {
+  const [title, setTitle] = useState(editing.plan?.title ?? '')
+  const [desc, setDesc] = useState(editing.plan?.description ?? '')
+
+  const timeLabel = editing.endHour > editing.startHour
+    ? `${formatHour(editing.startHour)} – ${formatHour(editing.endHour + 1)}`
+    : formatHour(editing.startHour)
 
   return (
     <div className="flex flex-col gap-2">
+      <div className="text-xs text-muted-foreground font-medium">{timeLabel}</div>
       <input
         autoFocus
         className="w-full rounded border border-border bg-background px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-primary"
@@ -64,7 +76,7 @@ function CellEditor({ plan, onSave, onDelete, onClose }: CellEditorProps) {
         onChange={e => setDesc(e.target.value)}
       />
       <div className="flex gap-1 justify-end">
-        {plan && (
+        {editing.plan && (
           <button onClick={onDelete} className="text-destructive hover:underline text-xs">Sil</button>
         )}
         <button onClick={onClose} className="p-1 rounded hover:bg-muted">
@@ -83,15 +95,16 @@ function CellEditor({ plan, onSave, onDelete, onClose }: CellEditorProps) {
 
 export default function CalendarPage() {
   const [weekStart, setWeekStart] = useState<Date>(() => getMondayOf(new Date()))
-  const [editing, setEditing] = useState<{ day: number; hour: number } | null>(null)
+  const [editing, setEditing] = useState<EditingState | null>(null)
   const [selectedUserId, setSelectedUserId] = useState<string | null>(null)
+  const [dragState, setDragState] = useState<{ day: number; startHour: number; endHour: number } | null>(null)
+  const isDragging = useRef(false)
 
-  const { plans, users, currentUserId, loading, fetchUsers, fetchWeek, upsertPlan, deletePlan } = useCalendar()
+  const { plans, users, currentUserId, loading, fetchUsers, fetchWeek, savePlan, deletePlan } = useCalendar()
 
   const weekKey = formatWeekStart(weekStart)
   const isOwnCalendar = selectedUserId === currentUserId
 
-  // İlk yükleme: kullanıcı listesini çek, kendi takvimini varsayılan yap
   useEffect(() => {
     fetchUsers()
   }, [fetchUsers])
@@ -102,15 +115,62 @@ export default function CalendarPage() {
     }
   }, [currentUserId, selectedUserId])
 
-  // Seçili kullanıcı veya hafta değişince takvimi çek
   useEffect(() => {
     if (selectedUserId) fetchWeek(weekKey, selectedUserId)
   }, [weekKey, selectedUserId, fetchWeek])
 
-  const getPlan = useCallback(
-    (day: number, hour: number) => plans.find(p => p.day_of_week === day && p.hour === hour),
-    [plans]
-  )
+  // Sürükleme bırakma global olarak yakala
+  useEffect(() => {
+    const handleMouseUp = () => {
+      if (!isDragging.current || !dragState) return
+      isDragging.current = false
+      const startH = Math.min(dragState.startHour, dragState.endHour)
+      const endH = Math.max(dragState.startHour, dragState.endHour)
+      // Eğer seçilen aralıkta tek bir mevcut plan varsa onu düzenlemeye aç
+      const existingPlan = plans.find(p =>
+        p.day_of_week === dragState.day && p.hour === startH && p.hour_end === endH + 1
+      )
+      setEditing({ day: dragState.day, startHour: startH, endHour: endH, plan: existingPlan })
+      setDragState(null)
+    }
+    window.addEventListener('mouseup', handleMouseUp)
+    return () => window.removeEventListener('mouseup', handleMouseUp)
+  }, [dragState, plans])
+
+  const getCellInfo = useCallback((day: number, hour: number): { planStart?: CalendarPlan; planCover?: CalendarPlan } => {
+    for (const plan of plans) {
+      if (plan.day_of_week !== day) continue
+      if (plan.hour === hour) return { planStart: plan }
+      if (hour > plan.hour && hour < plan.hour_end) return { planCover: plan }
+    }
+    return {}
+  }, [plans])
+
+  const isDragHighlighted = (day: number, hour: number): boolean => {
+    if (!dragState || dragState.day !== day) return false
+    const minH = Math.min(dragState.startHour, dragState.endHour)
+    const maxH = Math.max(dragState.startHour, dragState.endHour)
+    return hour >= minH && hour <= maxH
+  }
+
+  const handleCellMouseDown = (day: number, hour: number) => {
+    if (!isOwnCalendar) return
+    isDragging.current = true
+    setDragState({ day, startHour: hour, endHour: hour })
+    setEditing(null)
+  }
+
+  const handleCellMouseEnter = (day: number, hour: number) => {
+    if (!isDragging.current || !dragState || dragState.day !== day) return
+    setDragState(prev => prev ? { ...prev, endHour: hour } : null)
+  }
+
+  const handlePlanClick = (e: React.MouseEvent, plan: CalendarPlan) => {
+    if (!isOwnCalendar) return
+    e.stopPropagation()
+    if (isDragging.current) return
+    setEditing({ day: plan.day_of_week, startHour: plan.hour, endHour: plan.hour_end - 1, plan })
+  }
 
   const prevWeek = () => setWeekStart(d => { const n = new Date(d); n.setDate(n.getDate() - 7); return n })
   const nextWeek = () => setWeekStart(d => { const n = new Date(d); n.setDate(n.getDate() + 7); return n })
@@ -125,14 +185,15 @@ export default function CalendarPage() {
 
   const isCurrentWeek = weekKey === formatWeekStart(getMondayOf(new Date()))
 
-  const handleSave = async (day: number, hour: number, title: string, desc: string) => {
-    await upsertPlan(weekKey, day, hour, title, desc)
+  const handleSave = async (title: string, desc: string) => {
+    if (!editing) return
+    await savePlan(weekKey, editing.day, editing.startHour, editing.endHour + 1, title, desc)
     setEditing(null)
   }
 
-  const handleDelete = async (day: number, hour: number) => {
-    const plan = getPlan(day, hour)
-    if (plan) await deletePlan(plan.id)
+  const handleDelete = async () => {
+    if (!editing?.plan) return
+    await deletePlan(editing.plan.id)
     setEditing(null)
   }
 
@@ -191,8 +252,11 @@ export default function CalendarPage() {
       )}
 
       {/* Grid */}
-      <div className="overflow-auto border rounded-lg bg-card">
-        <div className="grid min-w-[700px]" style={{ gridTemplateColumns: '64px repeat(7, 1fr)' }}>
+      <div className="overflow-auto border rounded-lg bg-card select-none">
+        <div
+          className="grid min-w-[700px]"
+          style={{ gridTemplateColumns: '64px repeat(7, 1fr)' }}
+        >
           {/* Header row */}
           <div className="border-b border-r px-2 py-2 text-xs text-muted-foreground" />
           {DAYS.map((day, i) => {
@@ -219,17 +283,16 @@ export default function CalendarPage() {
             <div className="col-span-8 py-12 text-center text-sm text-muted-foreground">Yükleniyor...</div>
           ) : (
             HOURS.map(hour => (
-              <>
-                <div
-                  key={`h-${hour}`}
-                  className="border-b border-r px-2 py-1 text-xs text-muted-foreground text-right pr-3 leading-8"
-                >
+              <Fragment key={hour}>
+                <div className="border-b border-r px-2 py-1 text-xs text-muted-foreground text-right pr-3 leading-8">
                   {formatHour(hour)}
                 </div>
                 {DAYS.map((_, dayIdx) => {
                   const day = dayIdx + 1
-                  const plan = getPlan(day, hour)
-                  const isEditing = editing?.day === day && editing?.hour === hour
+                  const { planStart, planCover } = getCellInfo(day, hour)
+                  const plan = planStart ?? planCover
+                  const highlighted = isDragHighlighted(day, hour)
+                  const isEditingHere = editing?.day === day && editing?.startHour === hour && !planCover
 
                   return (
                     <div
@@ -237,42 +300,59 @@ export default function CalendarPage() {
                       className={cn(
                         'border-b border-r min-h-[40px] p-1 transition-colors',
                         isOwnCalendar ? 'cursor-pointer' : 'cursor-default',
-                        plan
-                          ? isOwnCalendar
-                            ? 'bg-blue-50 dark:bg-blue-950/30 hover:bg-blue-100 dark:hover:bg-blue-900/40'
-                            : 'bg-muted/60'
-                          : isOwnCalendar
-                            ? 'hover:bg-muted/50'
-                            : ''
+                        planStart && (isOwnCalendar
+                          ? 'bg-blue-50 dark:bg-blue-950/30 hover:bg-blue-100 dark:hover:bg-blue-900/40'
+                          : 'bg-muted/60'),
+                        planCover && (isOwnCalendar
+                          ? 'bg-blue-50/60 dark:bg-blue-950/20'
+                          : 'bg-muted/40'),
+                        highlighted && !plan && 'bg-primary/20',
+                        highlighted && planCover && 'bg-primary/30',
+                        highlighted && planStart && 'ring-1 ring-inset ring-primary/40',
                       )}
-                      onClick={() => {
-                        if (isOwnCalendar && !isEditing) setEditing({ day, hour })
+                      onMouseDown={() => {
+                        if (planCover && plan) {
+                          // Kaplı hücreye tıklanırsa planın başına git
+                          if (!isDragging.current) {
+                            setEditing({ day: plan.day_of_week, startHour: plan.hour, endHour: plan.hour_end - 1, plan })
+                          }
+                          return
+                        }
+                        handleCellMouseDown(day, hour)
                       }}
+                      onMouseEnter={() => handleCellMouseEnter(day, hour)}
                     >
-                      {isEditing && isOwnCalendar ? (
+                      {isEditingHere && isOwnCalendar ? (
                         <CellEditor
-                          plan={plan}
-                          onSave={(title, desc) => handleSave(day, hour, title, desc)}
-                          onDelete={() => handleDelete(day, hour)}
+                          editing={editing!}
+                          onSave={handleSave}
+                          onDelete={handleDelete}
                           onClose={() => setEditing(null)}
                         />
-                      ) : plan ? (
-                        <div className="text-xs">
+                      ) : planStart ? (
+                        <div
+                          className="text-xs cursor-pointer"
+                          onClick={(e) => handlePlanClick(e, planStart)}
+                        >
                           <div className={cn(
                             'font-medium truncate',
                             isOwnCalendar ? 'text-blue-700 dark:text-blue-300' : 'text-foreground/80'
                           )}>
-                            {plan.title}
+                            {planStart.title}
                           </div>
-                          {plan.description && (
-                            <div className="text-muted-foreground truncate">{plan.description}</div>
-                          )}
+                          {planStart.hour_end - planStart.hour > 1 ? (
+                            <div className="text-muted-foreground">
+                              {formatHour(planStart.hour)}–{formatHour(planStart.hour_end)}
+                            </div>
+                          ) : planStart.description ? (
+                            <div className="text-muted-foreground truncate">{planStart.description}</div>
+                          ) : null}
                         </div>
                       ) : null}
                     </div>
                   )
                 })}
-              </>
+              </Fragment>
             ))
           )}
         </div>
@@ -280,7 +360,7 @@ export default function CalendarPage() {
 
       <p className="text-xs text-muted-foreground text-center">
         {isOwnCalendar
-          ? 'Hücreye tıklayarak plan ekleyin veya düzenleyin.'
+          ? 'Tek saat için tıklayın, birden fazla saat için sürükleyin.'
           : 'Kendi takviminizi düzenlemek için üstten adınızı seçin.'}
       </p>
     </div>

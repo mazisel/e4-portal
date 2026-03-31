@@ -289,7 +289,7 @@ ALTER TABLE profiles ENABLE ROW LEVEL SECURITY;
 
 DROP POLICY IF EXISTS "profiles_owner_select" ON profiles;
 CREATE POLICY "profiles_owner_select" ON profiles
-  FOR SELECT USING (auth.uid() = id);
+  FOR SELECT USING (auth.uid() IS NOT NULL);
 
 DROP POLICY IF EXISTS "profiles_owner_update" ON profiles;
 CREATE POLICY "profiles_owner_update" ON profiles
@@ -346,6 +346,11 @@ CREATE OR REPLACE TRIGGER trg_calendar_plans_updated_at
 
 -- user_email kolonu (kimin planı olduğunu göstermek için)
 ALTER TABLE calendar_plans ADD COLUMN IF NOT EXISTS user_email text;
+
+-- hour_end kolonu (çok saatli planlar için bitiş saati, exclusive)
+ALTER TABLE calendar_plans ADD COLUMN IF NOT EXISTS hour_end integer;
+UPDATE calendar_plans SET hour_end = hour + 1 WHERE hour_end IS NULL;
+ALTER TABLE calendar_plans ALTER COLUMN hour_end SET NOT NULL;
 
 -- ============================================================
 -- 9. KASA, BORÇLAR, AVANSLAR
