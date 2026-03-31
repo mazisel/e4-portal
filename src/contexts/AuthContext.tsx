@@ -38,12 +38,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const router = useRouter()
   const supabase = createClient()
 
-  const fetchProfile = async (userId: string, email?: string) => {
-    // Email varsa profiles'a kaydet (ilk giriş veya güncelleme)
+  const fetchProfile = async (userId: string, email?: string, fullName?: string) => {
     if (email) {
       await supabase
         .from('profiles')
-        .upsert({ id: userId, email }, { onConflict: 'id' })
+        .upsert(
+          { id: userId, email, ...(fullName ? { full_name: fullName } : {}) },
+          { onConflict: 'id' }
+        )
     }
     const { data } = await supabase
       .from('profiles')
@@ -57,7 +59,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     supabase.auth.getSession().then(({ data: { session } }) => {
       setSession(session)
       setUser(session?.user ?? null)
-      if (session?.user) fetchProfile(session.user.id, session.user.email)
+      if (session?.user) fetchProfile(
+        session.user.id,
+        session.user.email,
+        session.user.user_metadata?.full_name ?? session.user.user_metadata?.name
+      )
       setLoading(false)
     })
 
@@ -66,7 +72,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         setSession(session)
         setUser(session?.user ?? null)
         if (session?.user) {
-          fetchProfile(session.user.id, session.user.email)
+          fetchProfile(
+            session.user.id,
+            session.user.email,
+            session.user.user_metadata?.full_name ?? session.user.user_metadata?.name
+          )
         } else {
           setProfile(null)
         }

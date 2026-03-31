@@ -1,8 +1,8 @@
 'use client'
 
-import { useState, useEffect, useCallback, useRef, Fragment } from 'react'
+import { useState, useEffect, useCallback, Fragment } from 'react'
 import { useCalendar, CalendarPlan } from '@/hooks/useCalendar'
-import { ChevronLeft, ChevronRight, X, Check, User } from 'lucide-react'
+import { ChevronLeft, ChevronRight, X, Check, User, Plus } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
 
@@ -32,62 +32,133 @@ function displayName(email: string | null, fullName: string | null): string {
   return '?'
 }
 
-interface EditingState {
+interface ModalState {
   day: number
-  startHour: number
-  endHour: number // inclusive
-  plan?: CalendarPlan
+  dayLabel: string
+  selectedHours: Set<number>
+  title: string
+  description: string
+  existingPlan?: CalendarPlan
 }
 
-interface CellEditorProps {
-  editing: EditingState
-  onSave: (title: string, description: string) => void
-  onDelete: () => void
+interface PlanModalProps {
+  state: ModalState
+  occupiedHours: Set<number>
   onClose: () => void
+  onSave: (selectedHours: Set<number>, title: string, description: string) => void
+  onDelete: () => void
 }
 
-function CellEditor({ editing, onSave, onDelete, onClose }: CellEditorProps) {
-  const [title, setTitle] = useState(editing.plan?.title ?? '')
-  const [desc, setDesc] = useState(editing.plan?.description ?? '')
+function PlanModal({ state, occupiedHours, onClose, onSave, onDelete }: PlanModalProps) {
+  const [selectedHours, setSelectedHours] = useState<Set<number>>(new Set(state.selectedHours))
+  const [title, setTitle] = useState(state.title)
+  const [desc, setDesc] = useState(state.description)
 
-  const timeLabel = editing.endHour > editing.startHour
-    ? `${formatHour(editing.startHour)} – ${formatHour(editing.endHour + 1)}`
-    : formatHour(editing.startHour)
+  const toggleHour = (h: number) => {
+    if (occupiedHours.has(h)) return
+    setSelectedHours(prev => {
+      const next = new Set(prev)
+      if (next.has(h)) next.delete(h)
+      else next.add(h)
+      return next
+    })
+  }
+
+  const minH = selectedHours.size > 0 ? Math.min(...selectedHours) : null
+  const maxH = selectedHours.size > 0 ? Math.max(...selectedHours) : null
+  const timeRange = minH !== null && maxH !== null
+    ? minH === maxH ? formatHour(minH) : `${formatHour(minH)} – ${formatHour(maxH + 1)}`
+    : null
+
+  const canSave = selectedHours.size > 0 && title.trim().length > 0
 
   return (
-    <div className="flex flex-col gap-2">
-      <div className="text-xs text-muted-foreground font-medium">{timeLabel}</div>
-      <input
-        autoFocus
-        className="w-full rounded border border-border bg-background px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-primary"
-        placeholder="Plan başlığı"
-        value={title}
-        onChange={e => setTitle(e.target.value)}
-        onKeyDown={e => {
-          if (e.key === 'Enter' && title.trim()) onSave(title.trim(), desc)
-          if (e.key === 'Escape') onClose()
-        }}
-      />
-      <textarea
-        className="w-full rounded border border-border bg-background px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-primary resize-none"
-        placeholder="Açıklama (opsiyonel)"
-        rows={2}
-        value={desc}
-        onChange={e => setDesc(e.target.value)}
-      />
-      <div className="flex gap-1 justify-end">
-        {editing.plan && (
-          <button onClick={onDelete} className="text-destructive hover:underline text-xs">Sil</button>
-        )}
-        <button onClick={onClose} className="p-1 rounded hover:bg-muted">
-          <X className="w-3 h-3" />
-        </button>
-        <button
-          onClick={() => title.trim() && onSave(title.trim(), desc)}
-          className="p-1 rounded bg-primary text-primary-foreground hover:opacity-90"
-        >
-          <Check className="w-3 h-3" />
-        </button>
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50" onClick={onClose}>
+      <div
+        className="bg-card border rounded-xl shadow-xl w-full max-w-sm mx-4 p-5 flex flex-col gap-4"
+        onClick={e => e.stopPropagation()}
+      >
+        {/* Başlık */}
+        <div className="flex items-start justify-between gap-2">
+          <div>
+            <h2 className="font-semibold text-sm">{state.existingPlan ? 'Planı Düzenle' : 'Plan Ekle'}</h2>
+            <p className="text-xs text-muted-foreground">{state.dayLabel}</p>
+          </div>
+          <button onClick={onClose} className="p-1 rounded hover:bg-muted text-muted-foreground">
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+
+        {/* Saat seçici */}
+        <div>
+          <p className="text-xs font-medium mb-2 text-muted-foreground">
+            Saat seç {timeRange && <span className="text-foreground">— {timeRange}</span>}
+          </p>
+          <div className="flex flex-wrap gap-1.5">
+            {HOURS.map(h => {
+              const isSelected = selectedHours.has(h)
+              const isOccupied = occupiedHours.has(h)
+              return (
+                <button
+                  key={h}
+                  onClick={() => toggleHour(h)}
+                  disabled={isOccupied}
+                  className={cn(
+                    'px-2 py-0.5 rounded text-xs font-mono transition-colors border',
+                    isSelected
+                      ? 'bg-primary text-primary-foreground border-primary'
+                      : isOccupied
+                        ? 'bg-muted/40 text-muted-foreground/40 border-border/40 cursor-not-allowed'
+                        : 'bg-muted text-muted-foreground border-border hover:bg-muted/70'
+                  )}
+                >
+                  {formatHour(h)}
+                </button>
+              )
+            })}
+          </div>
+        </div>
+
+        {/* Form */}
+        <div className="flex flex-col gap-2">
+          <input
+            autoFocus
+            className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+            placeholder="Plan başlığı *"
+            value={title}
+            onChange={e => setTitle(e.target.value)}
+            onKeyDown={e => {
+              if (e.key === 'Enter' && canSave) onSave(selectedHours, title.trim(), desc)
+              if (e.key === 'Escape') onClose()
+            }}
+          />
+          <textarea
+            className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary resize-none"
+            placeholder="Açıklama (opsiyonel)"
+            rows={2}
+            value={desc}
+            onChange={e => setDesc(e.target.value)}
+          />
+        </div>
+
+        {/* Butonlar */}
+        <div className="flex items-center justify-between gap-2">
+          {state.existingPlan ? (
+            <button
+              onClick={onDelete}
+              className="text-xs text-destructive hover:underline"
+            >
+              Sil
+            </button>
+          ) : <div />}
+          <div className="flex gap-2">
+            <Button variant="outline" size="sm" onClick={onClose}>İptal</Button>
+            <Button size="sm" disabled={!canSave} onClick={() => onSave(selectedHours, title.trim(), desc)}>
+              <Check className="w-3.5 h-3.5 mr-1" />
+              Kaydet
+            </Button>
+          </div>
+        </div>
       </div>
     </div>
   )
@@ -95,49 +166,25 @@ function CellEditor({ editing, onSave, onDelete, onClose }: CellEditorProps) {
 
 export default function CalendarPage() {
   const [weekStart, setWeekStart] = useState<Date>(() => getMondayOf(new Date()))
-  const [editing, setEditing] = useState<EditingState | null>(null)
+  const [modal, setModal] = useState<ModalState | null>(null)
   const [selectedUserId, setSelectedUserId] = useState<string | null>(null)
-  const [dragState, setDragState] = useState<{ day: number; startHour: number; endHour: number } | null>(null)
-  const isDragging = useRef(false)
 
   const { plans, users, currentUserId, loading, fetchUsers, fetchWeek, savePlan, deletePlan } = useCalendar()
 
   const weekKey = formatWeekStart(weekStart)
   const isOwnCalendar = selectedUserId === currentUserId
 
-  useEffect(() => {
-    fetchUsers()
-  }, [fetchUsers])
+  useEffect(() => { fetchUsers() }, [fetchUsers])
 
   useEffect(() => {
-    if (currentUserId && !selectedUserId) {
-      setSelectedUserId(currentUserId)
-    }
+    if (currentUserId && !selectedUserId) setSelectedUserId(currentUserId)
   }, [currentUserId, selectedUserId])
 
   useEffect(() => {
     if (selectedUserId) fetchWeek(weekKey, selectedUserId)
   }, [weekKey, selectedUserId, fetchWeek])
 
-  // Sürükleme bırakma global olarak yakala
-  useEffect(() => {
-    const handleMouseUp = () => {
-      if (!isDragging.current || !dragState) return
-      isDragging.current = false
-      const startH = Math.min(dragState.startHour, dragState.endHour)
-      const endH = Math.max(dragState.startHour, dragState.endHour)
-      // Eğer seçilen aralıkta tek bir mevcut plan varsa onu düzenlemeye aç
-      const existingPlan = plans.find(p =>
-        p.day_of_week === dragState.day && p.hour === startH && p.hour_end === endH + 1
-      )
-      setEditing({ day: dragState.day, startHour: startH, endHour: endH, plan: existingPlan })
-      setDragState(null)
-    }
-    window.addEventListener('mouseup', handleMouseUp)
-    return () => window.removeEventListener('mouseup', handleMouseUp)
-  }, [dragState, plans])
-
-  const getCellInfo = useCallback((day: number, hour: number): { planStart?: CalendarPlan; planCover?: CalendarPlan } => {
+  const getCellInfo = useCallback((day: number, hour: number) => {
     for (const plan of plans) {
       if (plan.day_of_week !== day) continue
       if (plan.hour === hour) return { planStart: plan }
@@ -146,30 +193,40 @@ export default function CalendarPage() {
     return {}
   }, [plans])
 
-  const isDragHighlighted = (day: number, hour: number): boolean => {
-    if (!dragState || dragState.day !== day) return false
-    const minH = Math.min(dragState.startHour, dragState.endHour)
-    const maxH = Math.max(dragState.startHour, dragState.endHour)
-    return hour >= minH && hour <= maxH
-  }
+  // Belirli bir günde başka planların kapladığı saatler (modal açıkken kullanılır)
+  const getOccupiedHours = useCallback((day: number, excludePlanId?: string): Set<number> => {
+    const occupied = new Set<number>()
+    for (const plan of plans) {
+      if (plan.day_of_week !== day) continue
+      if (plan.id === excludePlanId) continue
+      for (let h = plan.hour; h < plan.hour_end; h++) occupied.add(h)
+    }
+    return occupied
+  }, [plans])
 
-  const handleCellMouseDown = (day: number, hour: number) => {
+  const openModal = (day: number, hour: number, dayLabel: string, existingPlan?: CalendarPlan) => {
     if (!isOwnCalendar) return
-    isDragging.current = true
-    setDragState({ day, startHour: hour, endHour: hour })
-    setEditing(null)
+    if (existingPlan) {
+      const hours = new Set<number>()
+      for (let h = existingPlan.hour; h < existingPlan.hour_end; h++) hours.add(h)
+      setModal({ day, dayLabel, selectedHours: hours, title: existingPlan.title, description: existingPlan.description ?? '', existingPlan })
+    } else {
+      setModal({ day, dayLabel, selectedHours: new Set([hour]), title: '', description: '' })
+    }
   }
 
-  const handleCellMouseEnter = (day: number, hour: number) => {
-    if (!isDragging.current || !dragState || dragState.day !== day) return
-    setDragState(prev => prev ? { ...prev, endHour: hour } : null)
+  const handleSave = async (selectedHours: Set<number>, title: string, description: string) => {
+    if (!modal || selectedHours.size === 0) return
+    const hourStart = Math.min(...selectedHours)
+    const hourEnd = Math.max(...selectedHours) + 1
+    await savePlan(weekKey, modal.day, hourStart, hourEnd, title, description)
+    setModal(null)
   }
 
-  const handlePlanClick = (e: React.MouseEvent, plan: CalendarPlan) => {
-    if (!isOwnCalendar) return
-    e.stopPropagation()
-    if (isDragging.current) return
-    setEditing({ day: plan.day_of_week, startHour: plan.hour, endHour: plan.hour_end - 1, plan })
+  const handleDelete = async () => {
+    if (!modal?.existingPlan) return
+    await deletePlan(modal.existingPlan.id)
+    setModal(null)
   }
 
   const prevWeek = () => setWeekStart(d => { const n = new Date(d); n.setDate(n.getDate() - 7); return n })
@@ -184,19 +241,6 @@ export default function CalendarPage() {
   })()
 
   const isCurrentWeek = weekKey === formatWeekStart(getMondayOf(new Date()))
-
-  const handleSave = async (title: string, desc: string) => {
-    if (!editing) return
-    await savePlan(weekKey, editing.day, editing.startHour, editing.endHour + 1, title, desc)
-    setEditing(null)
-  }
-
-  const handleDelete = async () => {
-    if (!editing?.plan) return
-    await deletePlan(editing.plan.id)
-    setEditing(null)
-  }
-
   const selectedUser = users.find(u => u.id === selectedUserId)
 
   return (
@@ -228,7 +272,7 @@ export default function CalendarPage() {
           return (
             <button
               key={u.id}
-              onClick={() => { setSelectedUserId(u.id); setEditing(null) }}
+              onClick={() => { setSelectedUserId(u.id); setModal(null) }}
               className={cn(
                 'flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-medium border transition-colors',
                 isSelected
@@ -252,11 +296,8 @@ export default function CalendarPage() {
       )}
 
       {/* Grid */}
-      <div className="overflow-auto border rounded-lg bg-card select-none">
-        <div
-          className="grid min-w-[700px]"
-          style={{ gridTemplateColumns: '64px repeat(7, 1fr)' }}
-        >
+      <div className="overflow-auto border rounded-lg bg-card">
+        <div className="grid min-w-[700px]" style={{ gridTemplateColumns: '64px repeat(7, 1fr)' }}>
           {/* Header row */}
           <div className="border-b border-r px-2 py-2 text-xs text-muted-foreground" />
           {DAYS.map((day, i) => {
@@ -289,51 +330,34 @@ export default function CalendarPage() {
                 </div>
                 {DAYS.map((_, dayIdx) => {
                   const day = dayIdx + 1
+                  const dayDate = new Date(weekStart)
+                  dayDate.setDate(dayDate.getDate() + dayIdx)
+                  const dayLabel = dayDate.toLocaleDateString('tr-TR', { weekday: 'long', day: 'numeric', month: 'long' })
+
                   const { planStart, planCover } = getCellInfo(day, hour)
-                  const plan = planStart ?? planCover
-                  const highlighted = isDragHighlighted(day, hour)
-                  const isEditingHere = editing?.day === day && editing?.startHour === hour && !planCover
 
                   return (
                     <div
                       key={`${day}-${hour}`}
                       className={cn(
-                        'border-b border-r min-h-[40px] p-1 transition-colors',
+                        'border-b border-r min-h-[40px] relative group',
                         isOwnCalendar ? 'cursor-pointer' : 'cursor-default',
                         planStart && (isOwnCalendar
                           ? 'bg-blue-50 dark:bg-blue-950/30 hover:bg-blue-100 dark:hover:bg-blue-900/40'
                           : 'bg-muted/60'),
                         planCover && (isOwnCalendar
-                          ? 'bg-blue-50/60 dark:bg-blue-950/20'
+                          ? 'bg-blue-50/60 dark:bg-blue-950/20 hover:bg-blue-100/60'
                           : 'bg-muted/40'),
-                        highlighted && !plan && 'bg-primary/20',
-                        highlighted && planCover && 'bg-primary/30',
-                        highlighted && planStart && 'ring-1 ring-inset ring-primary/40',
+                        !planStart && !planCover && isOwnCalendar && 'hover:bg-muted/40',
                       )}
-                      onMouseDown={() => {
-                        if (planCover && plan) {
-                          // Kaplı hücreye tıklanırsa planın başına git
-                          if (!isDragging.current) {
-                            setEditing({ day: plan.day_of_week, startHour: plan.hour, endHour: plan.hour_end - 1, plan })
-                          }
-                          return
-                        }
-                        handleCellMouseDown(day, hour)
+                      onClick={() => {
+                        const plan = planStart ?? planCover
+                        if (plan) openModal(day, hour, dayLabel, plan)
+                        else openModal(day, hour, dayLabel)
                       }}
-                      onMouseEnter={() => handleCellMouseEnter(day, hour)}
                     >
-                      {isEditingHere && isOwnCalendar ? (
-                        <CellEditor
-                          editing={editing!}
-                          onSave={handleSave}
-                          onDelete={handleDelete}
-                          onClose={() => setEditing(null)}
-                        />
-                      ) : planStart ? (
-                        <div
-                          className="text-xs cursor-pointer"
-                          onClick={(e) => handlePlanClick(e, planStart)}
-                        >
+                      {planStart ? (
+                        <div className="p-1 text-xs">
                           <div className={cn(
                             'font-medium truncate',
                             isOwnCalendar ? 'text-blue-700 dark:text-blue-300' : 'text-foreground/80'
@@ -341,12 +365,16 @@ export default function CalendarPage() {
                             {planStart.title}
                           </div>
                           {planStart.hour_end - planStart.hour > 1 ? (
-                            <div className="text-muted-foreground">
+                            <div className="text-muted-foreground text-[10px]">
                               {formatHour(planStart.hour)}–{formatHour(planStart.hour_end)}
                             </div>
                           ) : planStart.description ? (
                             <div className="text-muted-foreground truncate">{planStart.description}</div>
                           ) : null}
+                        </div>
+                      ) : !planCover && isOwnCalendar ? (
+                        <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                          <Plus className="w-3.5 h-3.5 text-muted-foreground/50" />
                         </div>
                       ) : null}
                     </div>
@@ -360,9 +388,20 @@ export default function CalendarPage() {
 
       <p className="text-xs text-muted-foreground text-center">
         {isOwnCalendar
-          ? 'Tek saat için tıklayın, birden fazla saat için sürükleyin.'
+          ? 'Hücreye tıklayarak plan ekleyin veya düzenleyin.'
           : 'Kendi takviminizi düzenlemek için üstten adınızı seçin.'}
       </p>
+
+      {/* Modal */}
+      {modal && (
+        <PlanModal
+          state={modal}
+          occupiedHours={getOccupiedHours(modal.day, modal.existingPlan?.id)}
+          onClose={() => setModal(null)}
+          onSave={handleSave}
+          onDelete={handleDelete}
+        />
+      )}
     </div>
   )
 }

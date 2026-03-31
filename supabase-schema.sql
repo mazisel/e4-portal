@@ -280,6 +280,7 @@ ALTER TABLE fixed_items ADD COLUMN IF NOT EXISTS supplier_id uuid REFERENCES sup
 CREATE TABLE IF NOT EXISTS profiles (
   id                 uuid PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
   full_name          text,
+  email              text,
   can_access_finance boolean NOT NULL DEFAULT false,
   created_at         timestamptz NOT NULL DEFAULT now(),
   updated_at         timestamptz NOT NULL DEFAULT now()
@@ -291,10 +292,17 @@ DROP POLICY IF EXISTS "profiles_owner_select" ON profiles;
 CREATE POLICY "profiles_owner_select" ON profiles
   FOR SELECT USING (auth.uid() IS NOT NULL);
 
+DROP POLICY IF EXISTS "profiles_owner_insert" ON profiles;
+CREATE POLICY "profiles_owner_insert" ON profiles
+  FOR INSERT WITH CHECK (auth.uid() = id);
+
 DROP POLICY IF EXISTS "profiles_owner_update" ON profiles;
 CREATE POLICY "profiles_owner_update" ON profiles
   FOR UPDATE USING (auth.uid() = id)
   WITH CHECK (auth.uid() = id);
+
+-- email kolonu (mevcut tabloya ekle)
+ALTER TABLE profiles ADD COLUMN IF NOT EXISTS email text;
 
 CREATE OR REPLACE TRIGGER trg_profiles_updated_at
   BEFORE UPDATE ON profiles
@@ -304,7 +312,15 @@ CREATE OR REPLACE TRIGGER trg_profiles_updated_at
 CREATE OR REPLACE FUNCTION create_profile_for_user()
 RETURNS TRIGGER AS $$
 BEGIN
-  INSERT INTO profiles (id) VALUES (NEW.id) ON CONFLICT DO NOTHING;
+  INSERT INTO profiles (id, email, full_name)
+  VALUES (
+    NEW.id,
+    NEW.email,
+    COALESCE(NEW.raw_user_meta_data->>'full_name', NEW.raw_user_meta_data->>'name')
+  )
+  ON CONFLICT (id) DO UPDATE SET
+    email = EXCLUDED.email,
+    full_name = COALESCE(EXCLUDED.full_name, profiles.full_name);
   RETURN NEW;
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;

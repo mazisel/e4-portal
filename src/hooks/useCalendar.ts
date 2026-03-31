@@ -86,20 +86,27 @@ export function useCalendar() {
 
     const { data, error } = await supabase
       .from('calendar_plans')
-      .insert({
-        user_id: user.id,
-        user_email: user.email,
-        week_start: weekStart,
-        day_of_week: dayOfWeek,
-        hour: hourStart,
-        hour_end: hourEnd,
-        title,
-        description,
-      })
+      .upsert(
+        {
+          user_id: user.id,
+          user_email: user.email,
+          week_start: weekStart,
+          day_of_week: dayOfWeek,
+          hour: hourStart,
+          hour_end: hourEnd,
+          title,
+          description,
+        },
+        { onConflict: 'user_id,week_start,day_of_week,hour' }
+      )
       .select()
       .single()
 
-    if (error) { toast.error('Plan kaydedilemedi'); return }
+    if (error) {
+      console.error('savePlan error:', error)
+      toast.error('Plan kaydedilemedi: ' + error.message)
+      return
+    }
 
     setPlans(prev => {
       const filtered = prev.filter(p => !overlapping.some(o => o.id === p.id))
