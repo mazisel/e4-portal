@@ -372,7 +372,16 @@ export default function CalendarPage() {
                             <div className="text-muted-foreground truncate">{planStart.description}</div>
                           ) : null}
                         </div>
-                      ) : !planCover && isOwnCalendar ? (
+                      ) : planCover ? (
+                        <div className="p-1 text-xs">
+                          <div className={cn(
+                            'truncate opacity-60',
+                            isOwnCalendar ? 'text-blue-700 dark:text-blue-300' : 'text-foreground/60'
+                          )}>
+                            {planCover.title}
+                          </div>
+                        </div>
+                      ) : isOwnCalendar ? (
                         <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
                           <Plus className="w-3.5 h-3.5 text-muted-foreground/50" />
                         </div>
