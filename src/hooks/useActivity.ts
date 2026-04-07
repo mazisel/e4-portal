@@ -19,10 +19,27 @@ export interface ActivityLog {
   }
 }
 
+function fromDateKey(dateStr: string): Date {
+  const [year, month, day] = dateStr.split('-').map(Number)
+  return new Date(year, month - 1, day)
+}
+
+function getWeekStart(date: Date): Date {
+  const weekStart = new Date(date)
+  const mondayOffset = (weekStart.getDay() + 6) % 7
+  weekStart.setDate(weekStart.getDate() - mondayOffset)
+  weekStart.setHours(0, 0, 0, 0)
+  return weekStart
+}
+
+function isLockedWeek(dateStr: string): boolean {
+  return getWeekStart(fromDateKey(dateStr)).getTime() < getWeekStart(new Date()).getTime()
+}
+
 export function useActivity() {
   const [logs, setLogs] = useState<ActivityLog[]>([])
   const [loading, setLoading] = useState(false)
-  const supabase = createClient()
+  const [supabase] = useState(() => createClient())
 
   const fetchDay = useCallback(async (date: string) => {
     setLoading(true)
@@ -47,7 +64,7 @@ export function useActivity() {
       setLogs(merged as ActivityLog[])
     }
     setLoading(false)
-  }, [])
+  }, [supabase])
 
   const addLog = useCallback(async (
     date: string,
@@ -55,6 +72,11 @@ export function useActivity() {
     title: string,
     description: string
   ) => {
+    if (isLockedWeek(date)) {
+      toast.error('Haftası kapanan aktivitelerde değişiklik yapılamaz')
+      return
+    }
+
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) return
 
@@ -83,7 +105,7 @@ export function useActivity() {
       .single()
     setLogs(prev => [...prev, { ...data, profile } as ActivityLog])
     toast.success('Aktivite kaydedildi')
-  }, [])
+  }, [supabase])
 
   const updateLog = useCallback(async (
     id: string,
@@ -91,6 +113,28 @@ export function useActivity() {
     title: string,
     description: string
   ) => {
+    let targetDate = logs.find(log => log.id === id)?.date
+
+    if (!targetDate) {
+      const { data: existingLog, error: existingLogError } = await supabase
+        .from('activity_logs')
+        .select('date')
+        .eq('id', id)
+        .single()
+
+      if (existingLogError) {
+        toast.error('Aktivite bulunamadı')
+        return
+      }
+
+      targetDate = existingLog.date
+    }
+
+    if (isLockedWeek(targetDate)) {
+      toast.error('Haftası kapanan aktivitelerde değişiklik yapılamaz')
+      return
+    }
+
     const { data, error } = await supabase
       .from('activity_logs')
       .update({ duration_minutes: durationMinutes, title, description: description || null })
@@ -104,14 +148,36 @@ export function useActivity() {
     }
     setLogs(prev => prev.map(l => l.id === id ? { ...data, profile: l.profile } as ActivityLog : l))
     toast.success('Aktivite güncellendi')
-  }, [])
+  }, [logs, supabase])
 
   const deleteLog = useCallback(async (id: string) => {
+    let targetDate = logs.find(log => log.id === id)?.date
+
+    if (!targetDate) {
+      const { data: existingLog, error: existingLogError } = await supabase
+        .from('activity_logs')
+        .select('date')
+        .eq('id', id)
+        .single()
+
+      if (existingLogError) {
+        toast.error('Aktivite bulunamadı')
+        return
+      }
+
+      targetDate = existingLog.date
+    }
+
+    if (isLockedWeek(targetDate)) {
+      toast.error('Haftası kapanan aktivitelerde değişiklik yapılamaz')
+      return
+    }
+
     const { error } = await supabase.from('activity_logs').delete().eq('id', id)
     if (error) { toast.error('Aktivite silinemedi'); return }
     setLogs(prev => prev.filter(l => l.id !== id))
     toast.success('Aktivite silindi')
-  }, [])
+  }, [logs, supabase])
 
   return { logs, loading, fetchDay, addLog, updateLog, deleteLog }
 }
