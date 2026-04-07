@@ -290,6 +290,8 @@ CREATE TABLE IF NOT EXISTS profiles (
   full_name          text,
   email              text,
   can_access_finance boolean NOT NULL DEFAULT false,
+  role               text NOT NULL DEFAULT 'user' CHECK (role IN ('admin', 'user')),
+  is_active          boolean NOT NULL DEFAULT true,
   created_at         timestamptz NOT NULL DEFAULT now(),
   updated_at         timestamptz NOT NULL DEFAULT now()
 );
@@ -311,6 +313,37 @@ CREATE POLICY "profiles_owner_update" ON profiles
 
 -- email kolonu (mevcut tabloya ekle)
 ALTER TABLE profiles ADD COLUMN IF NOT EXISTS email text;
+ALTER TABLE profiles ADD COLUMN IF NOT EXISTS role text;
+ALTER TABLE profiles ADD COLUMN IF NOT EXISTS is_active boolean;
+
+UPDATE profiles
+SET role = CASE WHEN can_access_finance THEN 'admin' ELSE 'user' END
+WHERE role IS NULL;
+
+UPDATE profiles
+SET role = 'admin'
+WHERE can_access_finance = true AND role <> 'admin';
+
+UPDATE profiles
+SET is_active = true
+WHERE is_active IS NULL;
+
+ALTER TABLE profiles ALTER COLUMN role SET DEFAULT 'user';
+ALTER TABLE profiles ALTER COLUMN role SET NOT NULL;
+ALTER TABLE profiles ALTER COLUMN is_active SET DEFAULT true;
+ALTER TABLE profiles ALTER COLUMN is_active SET NOT NULL;
+
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1
+    FROM pg_constraint
+    WHERE conname = 'profiles_role_check'
+  ) THEN
+    ALTER TABLE profiles
+      ADD CONSTRAINT profiles_role_check CHECK (role IN ('admin', 'user'));
+  END IF;
+END $$;
 
 CREATE OR REPLACE TRIGGER trg_profiles_updated_at
   BEFORE UPDATE ON profiles

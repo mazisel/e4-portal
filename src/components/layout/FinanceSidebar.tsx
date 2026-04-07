@@ -5,7 +5,7 @@ import { usePathname } from 'next/navigation'
 import {
   LayoutDashboard, ArrowLeftRight, Tag, BarChart3,
   Users, Building2, SlidersHorizontal, Truck, X, ChevronLeft,
-  Wallet, CreditCard, HandCoins, ShieldCheck,
+  Wallet, CreditCard, HandCoins,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
@@ -18,7 +18,6 @@ const navItems = [
   { href: '/categories', label: 'Kategoriler', icon: Tag },
   { href: '/reports', label: 'Raporlar', icon: BarChart3 },
   { href: '/staff', label: 'Personeller', icon: Users },
-  { href: '/users', label: 'Kullanıcılar', icon: ShieldCheck },
   { href: '/customers', label: 'Müşteriler', icon: Building2 },
   { href: '/suppliers', label: 'Tedarikçiler', icon: Truck },
   { href: '/fixed', label: 'Sabitler', icon: SlidersHorizontal },

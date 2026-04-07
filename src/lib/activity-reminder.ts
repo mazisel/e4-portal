@@ -9,6 +9,7 @@ interface ProfileRow {
   id: string
   full_name: string | null
   email: string | null
+  is_active?: boolean | null
 }
 
 interface ActivityLogRow {
@@ -103,7 +104,7 @@ async function getMissingUsers(todayKey: string) {
   const [{ data: profiles, error: profilesError }, { data: logs, error: logsError }] = await Promise.all([
     supabase
       .from('profiles')
-      .select('id, full_name, email')
+      .select('*')
       .order('full_name', { ascending: true }),
     supabase
       .from('activity_logs')
@@ -123,6 +124,7 @@ async function getMissingUsers(todayKey: string) {
 
   return (profiles ?? [])
     .map(profile => profile as ProfileRow)
+    .filter(profile => profile.is_active !== false)
     .filter(profile => !activeUserIds.has(profile.id))
 }
 
