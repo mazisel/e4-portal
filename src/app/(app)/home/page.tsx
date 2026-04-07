@@ -12,6 +12,8 @@ import {
   BarChart3,
   Clock3,
   Timer,
+  ShieldCheck,
+  Users,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
@@ -84,6 +86,7 @@ function ModuleCard({ module, fullWidth = false }: { module: HomeModule; fullWid
 
 export default function HomePage() {
   const { user, profile } = useAuth()
+  const isAdmin = profile?.role === 'admin'
 
   const modules: HomeModule[] = [
     {
@@ -119,6 +122,17 @@ export default function HomePage() {
       lockMsg: '',
       tone: 'bg-gradient-to-r from-fuchsia-500 to-pink-600',
     },
+    {
+      href: isAdmin ? '/users' : null,
+      label: 'Kullanıcılar',
+      description: 'Kullanıcı hesaplarını, rollerini ve erişim durumlarını yönetin.',
+      icon: Users,
+      metricIcon: ShieldCheck,
+      metric: 'Rol ve yetkiler',
+      locked: !isAdmin,
+      lockMsg: 'Bu modülü sadece yöneticiler kullanabilir.',
+      tone: 'bg-gradient-to-r from-amber-500 to-orange-600',
+    },
   ]
 
   const unlockedCount = modules.filter(module => !module.locked).length
@@ -146,9 +160,13 @@ export default function HomePage() {
         </section>
 
         <section className="grid grid-cols-1 gap-4 md:grid-cols-2">
-          <ModuleCard module={modules[0]} />
-          <ModuleCard module={modules[1]} />
-          <ModuleCard module={modules[2]} fullWidth />
+          {modules.map((module, index) => (
+            <ModuleCard
+              key={module.label}
+              module={module}
+              fullWidth={modules.length % 2 === 1 && index === modules.length - 1}
+            />
+          ))}
         </section>
       </div>
     </div>

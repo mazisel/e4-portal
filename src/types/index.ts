@@ -1,5 +1,15 @@
 export type TransactionType = 'income' | 'expense'
 export type PaymentMethod = 'cash' | 'bank_transfer' | 'credit_card'
+export type UserRole = 'admin' | 'user'
+
+export interface UserProfile {
+  id: string
+  full_name: string | null
+  email: string | null
+  can_access_finance: boolean
+  role: UserRole
+  is_active: boolean
+}
 
 export interface Customer {
   id: string

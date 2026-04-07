@@ -1,5 +1,6 @@
 import { createServerClient } from '@supabase/ssr'
 import { NextResponse, type NextRequest } from 'next/server'
+import { normalizeProfileRecord } from '@/lib/profile-utils'
 
 export async function proxy(request: NextRequest) {
   let supabaseResponse = NextResponse.next({ request })
@@ -24,19 +25,41 @@ export async function proxy(request: NextRequest) {
   )
 
   const { data: { user } } = await supabase.auth.getUser()
+  let activeUser = user
 
   const isAuthPage = request.nextUrl.pathname.startsWith('/login')
   const isAppPage = !isAuthPage && request.nextUrl.pathname !== '/'
 
-  if (!user && isAppPage) {
+  if (user) {
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('*')
+      .eq('id', user.id)
+      .single()
+
+    const normalizedProfile = normalizeProfileRecord(profile)
+
+    if (normalizedProfile && !normalizedProfile.is_active) {
+      await supabase.auth.signOut()
+      activeUser = null
+
+      if (!isAuthPage) {
+        const url = request.nextUrl.clone()
+        url.pathname = '/login'
+        return NextResponse.redirect(url)
+      }
+    }
+  }
+
+  if (!activeUser && isAppPage) {
     const url = request.nextUrl.clone()
     url.pathname = '/login'
     return NextResponse.redirect(url)
   }
 
-  if (user && isAuthPage) {
+  if (activeUser && isAuthPage) {
     const url = request.nextUrl.clone()
-    url.pathname = '/dashboard'
+    url.pathname = '/home'
     return NextResponse.redirect(url)
   }
 

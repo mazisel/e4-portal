@@ -1,10 +1,25 @@
 import { createClient } from '@/lib/supabase-server'
+import { normalizeProfileRecord } from '@/lib/profile-utils'
 import { UserManagementTable, type ManagedUser } from '@/components/users/UserManagementTable'
 import { Card, CardContent } from '@/components/ui/card'
 import { ShieldAlert } from 'lucide-react'
 import Link from 'next/link'
 import { Button } from '@/components/ui/button'
 import { redirect } from 'next/navigation'
+
+function normalizeManagedUser(record: Record<string, unknown>): ManagedUser {
+  const profile = normalizeProfileRecord(record)
+
+  return {
+    id: String(record.id),
+    full_name: typeof record.full_name === 'string' ? record.full_name : profile?.full_name ?? null,
+    email: typeof record.email === 'string' ? record.email : profile?.email ?? null,
+    can_access_finance: profile?.can_access_finance ?? false,
+    role: profile?.role ?? 'user',
+    is_active: profile?.is_active ?? true,
+    created_at: typeof record.created_at === 'string' ? record.created_at : '',
+  }
+}
 
 async function getPageData() {
   const supabase = await createClient()
@@ -14,13 +29,15 @@ async function getPageData() {
     redirect('/login')
   }
 
-  const { data: currentProfile } = await supabase
+  const { data: currentProfileData } = await supabase
     .from('profiles')
-    .select('id, can_access_finance')
+    .select('*')
     .eq('id', user.id)
     .single()
 
-  if (!currentProfile?.can_access_finance) {
+  const currentProfile = normalizeProfileRecord(currentProfileData)
+
+  if (!currentProfile || currentProfile.role !== 'admin') {
     return {
       currentUserId: user.id,
       allowed: false,
@@ -30,13 +47,13 @@ async function getPageData() {
 
   const { data: users } = await supabase
     .from('profiles')
-    .select('id, full_name, email, can_access_finance, created_at')
+    .select('*')
     .order('full_name', { ascending: true })
 
   return {
     currentUserId: user.id,
     allowed: true,
-    users: (users ?? []) as ManagedUser[],
+    users: (users ?? []).map(userRecord => normalizeManagedUser(userRecord as Record<string, unknown>)),
   }
 }
 
@@ -52,13 +69,13 @@ export default async function UsersPage() {
               <ShieldAlert className="h-7 w-7 text-muted-foreground" />
             </div>
             <div className="space-y-1">
-              <h1 className="text-lg font-semibold">Kullanıcı Yönetimi Kapalı</h1>
+              <h1 className="text-lg font-semibold">Yönetici Yetkisi Gerekiyor</h1>
               <p className="text-sm text-muted-foreground">
-                Bu ekranı görüntülemek için finans erişim yetkisi gerekiyor.
+                Kullanıcı yönetimi modülünü yalnızca admin rolündeki kullanıcılar açabilir.
               </p>
             </div>
             <Button asChild variant="outline">
-              <Link href="/dashboard">Dashboard&apos;a Dön</Link>
+              <Link href="/home">Ana Sayfaya Dön</Link>
             </Button>
           </CardContent>
         </Card>
