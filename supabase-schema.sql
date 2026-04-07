@@ -46,6 +46,14 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
+CREATE OR REPLACE FUNCTION is_activity_week_open(target_date date)
+RETURNS boolean
+LANGUAGE sql
+STABLE
+AS $$
+  SELECT date_trunc('week', target_date::timestamp)::date >= date_trunc('week', timezone('Europe/Istanbul', now()))::date
+$$;
+
 CREATE OR REPLACE TRIGGER trg_categories_updated_at
   BEFORE UPDATE ON categories
   FOR EACH ROW EXECUTE FUNCTION update_updated_at();
@@ -530,10 +538,27 @@ CREATE INDEX IF NOT EXISTS idx_activity_logs_date ON activity_logs(date);
 
 ALTER TABLE activity_logs ENABLE ROW LEVEL SECURITY;
 
+DROP POLICY IF EXISTS "activity_select" ON activity_logs;
+DROP POLICY IF EXISTS "activity_insert" ON activity_logs;
+DROP POLICY IF EXISTS "activity_update" ON activity_logs;
+DROP POLICY IF EXISTS "activity_delete" ON activity_logs;
+
 CREATE POLICY "activity_select" ON activity_logs FOR SELECT USING (auth.uid() IS NOT NULL);
-CREATE POLICY "activity_insert" ON activity_logs FOR INSERT WITH CHECK (auth.uid() = user_id);
-CREATE POLICY "activity_update" ON activity_logs FOR UPDATE USING (auth.uid() = user_id);
-CREATE POLICY "activity_delete" ON activity_logs FOR DELETE USING (auth.uid() = user_id);
+CREATE POLICY "activity_insert" ON activity_logs FOR INSERT WITH CHECK (
+  auth.uid() = user_id
+  AND is_activity_week_open(date)
+);
+CREATE POLICY "activity_update" ON activity_logs FOR UPDATE USING (
+  auth.uid() = user_id
+  AND is_activity_week_open(date)
+) WITH CHECK (
+  auth.uid() = user_id
+  AND is_activity_week_open(date)
+);
+CREATE POLICY "activity_delete" ON activity_logs FOR DELETE USING (
+  auth.uid() = user_id
+  AND is_activity_week_open(date)
+);
 
 CREATE OR REPLACE TRIGGER trg_activity_logs_updated_at
   BEFORE UPDATE ON activity_logs

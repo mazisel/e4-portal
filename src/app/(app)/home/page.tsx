@@ -1,89 +1,155 @@
 'use client'
 
+import type { LucideIcon } from 'lucide-react'
 import Link from 'next/link'
 import { useAuth } from '@/contexts/AuthContext'
-import { TrendingUp, CalendarDays, ClipboardList, Lock } from 'lucide-react'
+import {
+  TrendingUp,
+  CalendarDays,
+  ClipboardList,
+  Lock,
+  ArrowUpRight,
+  BarChart3,
+  Clock3,
+  Timer,
+} from 'lucide-react'
+import { cn } from '@/lib/utils'
+
+interface HomeModule {
+  href: string | null
+  label: string
+  description: string
+  icon: LucideIcon
+  metricIcon: LucideIcon
+  metric: string
+  locked: boolean
+  lockMsg: string
+  tone: string
+}
+
+function ModuleCard({ module, fullWidth = false }: { module: HomeModule; fullWidth?: boolean }) {
+  const Icon = module.icon
+  const MetricIcon = module.metricIcon
+
+  const cardClasses = cn(
+    'group overflow-hidden rounded-2xl border bg-card',
+    fullWidth && 'md:col-span-2',
+    module.locked
+      ? 'cursor-not-allowed opacity-70'
+      : 'transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md'
+  )
+
+  const content = (
+    <>
+      <div className={cn('flex items-center justify-between border-b px-4 py-3', module.tone)}>
+        <div className="flex items-center gap-2.5">
+          <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-black/20 text-white">
+            <Icon className="h-4.5 w-4.5" />
+          </span>
+          <h2 className="text-sm font-semibold text-white">{module.label}</h2>
+        </div>
+        {module.locked ? (
+          <Lock className="h-4 w-4 text-white/90" />
+        ) : (
+          <ArrowUpRight className="h-4 w-4 text-white/90 transition-transform duration-200 group-hover:translate-x-0.5 group-hover:-translate-y-0.5" />
+        )}
+      </div>
+
+      <div className="space-y-4 p-4">
+        <p className="text-sm leading-6 text-muted-foreground">
+          {module.locked ? module.lockMsg : module.description}
+        </p>
+
+        <div className="flex items-center justify-between border-t pt-3 text-xs text-muted-foreground">
+          <span className="inline-flex items-center gap-1.5">
+            <MetricIcon className="h-3.5 w-3.5" />
+            {module.metric}
+          </span>
+          <span className="font-medium">{module.locked ? 'Kapalı' : 'Aç'}</span>
+        </div>
+      </div>
+    </>
+  )
+
+  if (module.locked || !module.href) {
+    return <article className={cardClasses}>{content}</article>
+  }
+
+  return (
+    <Link href={module.href} className={cardClasses}>
+      {content}
+    </Link>
+  )
+}
 
 export default function HomePage() {
   const { user, profile } = useAuth()
 
-  const modules = [
+  const modules: HomeModule[] = [
     {
       href: profile?.can_access_finance ? '/dashboard' : null,
       label: 'Finans',
-      description: 'Gelir, gider ve raporları yönetin',
+      description: 'Gelir, gider ve raporları yönetin.',
       icon: TrendingUp,
-      color: 'from-emerald-500 to-teal-600',
+      metricIcon: BarChart3,
+      metric: 'Rapor ve özetler',
       locked: !profile?.can_access_finance,
       lockMsg: 'Bu modüle erişim yetkiniz bulunmamaktadır.',
+      tone: 'bg-gradient-to-r from-emerald-500 to-teal-600',
     },
     {
       href: '/calendar',
       label: 'Takvim',
-      description: 'Haftalık planınızı saatlik olarak düzenleyin',
+      description: 'Haftalık planınızı saatlik olarak düzenleyin.',
       icon: CalendarDays,
-      color: 'from-blue-500 to-indigo-600',
+      metricIcon: Clock3,
+      metric: 'Planlama görünümü',
       locked: false,
       lockMsg: '',
+      tone: 'bg-gradient-to-r from-blue-500 to-indigo-600',
     },
     {
       href: '/activity',
       label: 'Aktivite',
-      description: 'Günlük çalışmalarınızı ve harcadığınız süreyi kaydedin',
+      description: 'Günlük çalışmalarınızı ve harcadığınız süreyi kaydedin.',
       icon: ClipboardList,
-      color: 'from-violet-500 to-purple-600',
+      metricIcon: Timer,
+      metric: 'Zaman takibi',
       locked: false,
       lockMsg: '',
+      tone: 'bg-gradient-to-r from-fuchsia-500 to-pink-600',
     },
   ]
 
+  const unlockedCount = modules.filter(module => !module.locked).length
+  const todayLabel = new Date().toLocaleDateString('tr-TR', {
+    weekday: 'long',
+    day: 'numeric',
+    month: 'long',
+    year: 'numeric',
+  })
+
   return (
-    <div className="min-h-full flex flex-col items-center justify-center py-12">
-      <div className="text-center mb-10">
-        <h1 className="text-3xl font-bold">Hoş geldiniz</h1>
-        <p className="text-muted-foreground mt-1 text-sm">{user?.email}</p>
-      </div>
+    <div className="min-h-full px-4 py-6 md:px-6">
+      <div className="mx-auto max-w-4xl space-y-5">
+        <section className="rounded-2xl border bg-card p-4 md:p-5">
+          <div className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
+            <div className="space-y-1">
+              <p className="text-xs capitalize text-muted-foreground">{todayLabel}</p>
+              <h1 className="text-2xl font-semibold leading-tight">Hoş geldiniz</h1>
+              <p className="text-sm text-muted-foreground">{user?.email}</p>
+            </div>
+            <div className="inline-flex items-center rounded-xl border px-3 py-1.5 text-xs text-muted-foreground">
+              {unlockedCount}/{modules.length} modül erişime açık
+            </div>
+          </div>
+        </section>
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 w-full max-w-2xl px-4">
-        {modules.map((mod) => {
-          const Icon = mod.icon
-
-          if (mod.locked) {
-            return (
-              <div
-                key={mod.label}
-                className="relative rounded-2xl overflow-hidden border bg-card opacity-60 cursor-not-allowed select-none"
-              >
-                <div className={`bg-gradient-to-br ${mod.color} p-8 flex justify-center`}>
-                  <Icon className="w-12 h-12 text-white" />
-                </div>
-                <div className="p-5">
-                  <div className="flex items-center gap-2 mb-1">
-                    <h2 className="text-lg font-semibold">{mod.label}</h2>
-                    <Lock className="w-4 h-4 text-muted-foreground" />
-                  </div>
-                  <p className="text-sm text-muted-foreground">{mod.lockMsg}</p>
-                </div>
-              </div>
-            )
-          }
-
-          return (
-            <Link
-              key={mod.label}
-              href={mod.href!}
-              className="rounded-2xl overflow-hidden border bg-card hover:shadow-lg transition-shadow group"
-            >
-              <div className={`bg-gradient-to-br ${mod.color} p-8 flex justify-center group-hover:brightness-110 transition-all`}>
-                <Icon className="w-12 h-12 text-white" />
-              </div>
-              <div className="p-5">
-                <h2 className="text-lg font-semibold mb-1">{mod.label}</h2>
-                <p className="text-sm text-muted-foreground">{mod.description}</p>
-              </div>
-            </Link>
-          )
-        })}
+        <section className="grid grid-cols-1 gap-4 md:grid-cols-2">
+          <ModuleCard module={modules[0]} />
+          <ModuleCard module={modules[1]} />
+          <ModuleCard module={modules[2]} fullWidth />
+        </section>
       </div>
     </div>
   )
