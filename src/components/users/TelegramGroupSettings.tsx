@@ -63,9 +63,29 @@ export function TelegramGroupSettings({ initialChatId }: TelegramGroupSettingsPr
   const handleTest = async () => {
     setTesting(true)
     try {
+      // Step 1: Get bot token + chat ID from server (admin-only)
       const response = await fetch('/api/settings/telegram-test', { method: 'POST' })
       const payload = await response.json().catch(() => ({}))
-      if (!response.ok) throw new Error(payload.error ?? 'Test mesajı gönderilemedi')
+      if (!response.ok) throw new Error(payload.error ?? 'Test bilgileri alinamadi')
+
+      const { botToken, chatId: serverChatId } = payload
+      if (!botToken || !serverChatId) throw new Error('Bot token veya Chat ID alinamadi')
+
+      // Step 2: Send message directly from browser (server can't reach Telegram)
+      const telegramRes = await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          chat_id: serverChatId,
+          text: '✅ E4 Portal - Telegram bağlantısı başarıyla çalışıyor!',
+        }),
+      })
+
+      const telegramData = await telegramRes.json().catch(() => ({}))
+      if (!telegramRes.ok) {
+        throw new Error(telegramData.description ?? 'Telegram mesajı gönderilemedi')
+      }
+
       toast.success('Test mesajı gruba gönderildi!')
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Test mesajı gönderilemedi'
