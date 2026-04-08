@@ -1,152 +1,84 @@
-import { type NextRequest } from 'next/server'
+import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase-server'
 import { isAdminProfile } from '@/lib/profile-utils'
 
-function json(data: Record<string, unknown>, status = 200) {
-  return new Response(JSON.stringify(data), {
-    status,
-    headers: { 'Content-Type': 'application/json' },
-  })
-}
-
 export async function POST(_request: NextRequest) {
-  // Step 1: Auth
-  let supabase
   try {
-    supabase = await createClient()
-  } catch (err) {
-    return json({ error: `[1] createClient hatasi: ${err instanceof Error ? err.message : err}` }, 500)
-  }
+    const supabase = await createClient()
+    const { data: { user } } = await supabase.auth.getUser()
 
-  let user
-  try {
-    const { data } = await supabase.auth.getUser()
-    user = data.user
-  } catch (err) {
-    return json({ error: `[2] getUser hatasi: ${err instanceof Error ? err.message : err}` }, 500)
-  }
+    if (!user) {
+      return NextResponse.json({ error: 'Yetkisiz erisim' }, { status: 401 })
+    }
 
-  if (!user) {
-    return json({ error: 'Yetkisiz erisim' }, 401)
-  }
-
-  // Step 2: Admin check
-  let profile
-  try {
-    const { data, error } = await supabase
+    const { data: profile, error: profileError } = await supabase
       .from('profiles')
       .select('*')
       .eq('id', user.id)
       .single()
-    if (error) return json({ error: `[3] Profil hatasi: ${error.message}` }, 500)
-    profile = data
-  } catch (err) {
-    return json({ error: `[3] Profil fetch hatasi: ${err instanceof Error ? err.message : err}` }, 500)
-  }
 
-  if (!isAdminProfile(profile)) {
-    return json({ error: 'Bu islem icin yetkiniz yok' }, 403)
-  }
+    if (profileError || !isAdminProfile(profile)) {
+      return NextResponse.json({ error: 'Bu islem icin yetkiniz yok' }, { status: 403 })
+    }
 
-  // Step 3: Read settings
-  let chatId: string | null = null
-  try {
-    const { data: settings, error } = await supabase
+    const { data: settings, error: settingsError } = await supabase
       .from('app_settings')
       .select('telegram_group_chat_id')
       .eq('id', 1)
       .maybeSingle()
-    if (error) return json({ error: `[4] Ayarlar hatasi: ${error.message}` }, 500)
-    chatId = settings?.telegram_group_chat_id ?? null
-  } catch (err) {
-    return json({ error: `[4] Ayarlar fetch hatasi: ${err instanceof Error ? err.message : err}` }, 500)
-  }
 
-  if (!chatId) {
-    return json({ error: 'Telegram grup Chat ID ayarlanmamis' }, 400)
-  }
+    if (settingsError) {
+      return NextResponse.json({ error: `Ayarlar hatasi: ${settingsError.message}` }, { status: 500 })
+    }
 
-  // Step 4: Check bot token
-  const botToken = process.env.TELEGRAM_BOT_TOKEN
-  if (!botToken) {
-    return json({ error: 'TELEGRAM_BOT_TOKEN ortam degiskeni tanimli degil' }, 500)
-  }
+    const chatId = settings?.telegram_group_chat_id?.trim()
+    if (!chatId) {
+      return NextResponse.json({ error: 'Telegram grup Chat ID ayarlanmamis' }, { status: 400 })
+    }
 
-  // Step 5: Send Telegram message
-  try {
+    const botToken = process.env.TELEGRAM_BOT_TOKEN?.trim()
+    if (!botToken) {
+      return NextResponse.json({ error: 'TELEGRAM_BOT_TOKEN ortam degiskeni tanimli degil' }, { status: 500 })
+    }
+
+    // Build URL carefully and verify it's valid
     const telegramUrl = `https://api.telegram.org/bot${botToken}/sendMessage`
-    const payload = JSON.stringify({
+    try {
+      new URL(telegramUrl)
+    } catch {
+      return NextResponse.json({
+        error: `Gecersiz Telegram URL olusturuldu. Token uzunlugu: ${botToken.length}, ilk 4 karakter: ${botToken.slice(0, 4)}`
+      }, { status: 500 })
+    }
+
+    const body = JSON.stringify({
       chat_id: chatId,
       text: '✅ E4 Portal - Telegram bağlantısı başarıyla çalışıyor!',
     })
 
-    // Use AbortController with timeout and cache: 'no-store' to avoid Next.js fetch issues
-    const controller = new AbortController()
-    const timeout = setTimeout(() => controller.abort(), 10000)
-
-    const telegramRes = await fetch(telegramUrl, {
+    // Use same fetch pattern as working SMS route
+    const res = await fetch(telegramUrl, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: payload,
-      cache: 'no-store',
-      signal: controller.signal,
-      // @ts-expect-error -- Next.js extended fetch option
-      next: { revalidate: 0 },
+      body,
     })
 
-    clearTimeout(timeout)
+    const text = await res.text()
 
-    const telegramBody = await telegramRes.json().catch(() => null)
-
-    if (!telegramRes.ok) {
-      const desc = telegramBody?.description ?? 'Bilinmeyen hata'
-      return json({ error: `Telegram API hatasi (${telegramRes.status}): ${desc}` }, 502)
+    if (!res.ok) {
+      let desc = text
+      try {
+        desc = JSON.parse(text).description ?? text
+      } catch { /* use raw text */ }
+      return NextResponse.json({ error: `Telegram hatasi (${res.status}): ${desc}` }, { status: 502 })
     }
 
-    return json({ ok: true })
+    return NextResponse.json({ ok: true })
   } catch (err) {
-    // If Next.js patched fetch fails, try with undici/node native
-    try {
-      const https = await import('node:https')
-      const result = await new Promise<{ ok: boolean; status: number; body: string }>((resolve, reject) => {
-        const postData = JSON.stringify({
-          chat_id: chatId,
-          text: '✅ E4 Portal - Telegram bağlantısı başarıyla çalışıyor!',
-        })
-        const url = new URL(`https://api.telegram.org/bot${botToken}/sendMessage`)
-        const req = https.request(
-          {
-            hostname: url.hostname,
-            path: url.pathname,
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              'Content-Length': Buffer.byteLength(postData),
-            },
-          },
-          (res) => {
-            let data = ''
-            res.on('data', (chunk: string) => { data += chunk })
-            res.on('end', () => {
-              resolve({ ok: res.statusCode === 200, status: res.statusCode ?? 0, body: data })
-            })
-          },
-        )
-        req.on('error', reject)
-        req.write(postData)
-        req.end()
-      })
-
-      if (!result.ok) {
-        const parsed = JSON.parse(result.body).description ?? 'Bilinmeyen hata'
-        return json({ error: `Telegram API hatasi (${result.status}): ${parsed}` }, 502)
-      }
-
-      return json({ ok: true })
-    } catch (fallbackErr) {
-      return json({
-        error: `Telegram gonderilemedi. fetch: ${err instanceof Error ? err.message : err}, fallback: ${fallbackErr instanceof Error ? fallbackErr.message : fallbackErr}`,
-      }, 500)
-    }
+    // Serialize full error details
+    const message = err instanceof Error
+      ? `${err.name}: ${err.message}${err.cause ? ` | cause: ${JSON.stringify(err.cause)}` : ''}`
+      : JSON.stringify(err)
+    return NextResponse.json({ error: `Hata: ${message}` }, { status: 500 })
   }
 }
