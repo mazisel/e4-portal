@@ -25,6 +25,7 @@ export function TelegramGroupSettings({ initialChatId }: TelegramGroupSettingsPr
   const [editing, setEditing] = useState(false)
   const [draft, setDraft] = useState('')
   const [saving, setSaving] = useState(false)
+  const [testing, setTesting] = useState(false)
 
   const isConnected = Boolean(chatId)
 
@@ -56,6 +57,21 @@ export function TelegramGroupSettings({ initialChatId }: TelegramGroupSettingsPr
       toast.error(message)
     } finally {
       setSaving(false)
+    }
+  }
+
+  const handleTest = async () => {
+    setTesting(true)
+    try {
+      const response = await fetch('/api/settings/telegram-test', { method: 'POST' })
+      const payload = await response.json()
+      if (!response.ok) throw new Error(payload.error ?? 'Test mesajı gönderilemedi')
+      toast.success('Test mesajı gruba gönderildi!')
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Test mesajı gönderilemedi'
+      toast.error(message)
+    } finally {
+      setTesting(false)
     }
   }
 
@@ -136,7 +152,18 @@ export function TelegramGroupSettings({ initialChatId }: TelegramGroupSettingsPr
               )}
             </div>
             <div className="flex shrink-0 gap-2">
-              <Button size="sm" variant="outline" onClick={handleEdit} disabled={saving}>
+              {isConnected && (
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="text-[#229ED9] hover:text-[#229ED9]"
+                  onClick={handleTest}
+                  disabled={testing || saving}
+                >
+                  {testing ? 'Gönderiliyor...' : 'Test Et'}
+                </Button>
+              )}
+              <Button size="sm" variant="outline" onClick={handleEdit} disabled={saving || testing}>
                 {isConnected ? 'Düzenle' : 'Bağla'}
               </Button>
               {isConnected && (
@@ -145,7 +172,7 @@ export function TelegramGroupSettings({ initialChatId }: TelegramGroupSettingsPr
                   variant="outline"
                   className="text-destructive hover:text-destructive"
                   onClick={handleDisconnect}
-                  disabled={saving}
+                  disabled={saving || testing}
                 >
                   Bağlantıyı Kes
                 </Button>
