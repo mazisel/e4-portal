@@ -49,7 +49,7 @@ async function getPageData() {
 
   const [{ data: users }, { data: settings }] = await Promise.all([
     supabase.from('profiles').select('*').order('full_name', { ascending: true }),
-    supabase.from('app_settings').select('telegram_group_chat_id').eq('id', 1).single(),
+    supabase.from('app_settings').select('telegram_group_chat_id').eq('id', 1).maybeSingle(),
   ])
 
   return {
