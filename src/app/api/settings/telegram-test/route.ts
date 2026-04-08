@@ -10,44 +10,70 @@ function json(data: Record<string, unknown>, status = 200) {
 }
 
 export async function POST(_request: NextRequest) {
+  // Step 1: Auth
+  let supabase
   try {
-    const supabase = await createClient()
-    const { data: { user } } = await supabase.auth.getUser()
+    supabase = await createClient()
+  } catch (err) {
+    return json({ error: `[1] createClient hatasi: ${err instanceof Error ? err.message : err}` }, 500)
+  }
 
-    if (!user) {
-      return json({ error: 'Yetkisiz erisim' }, 401)
-    }
+  let user
+  try {
+    const { data } = await supabase.auth.getUser()
+    user = data.user
+  } catch (err) {
+    return json({ error: `[2] getUser hatasi: ${err instanceof Error ? err.message : err}` }, 500)
+  }
 
-    const { data: profile, error: profileError } = await supabase
+  if (!user) {
+    return json({ error: 'Yetkisiz erisim' }, 401)
+  }
+
+  // Step 2: Admin check
+  let profile
+  try {
+    const { data, error } = await supabase
       .from('profiles')
       .select('*')
       .eq('id', user.id)
       .single()
+    if (error) return json({ error: `[3] Profil hatasi: ${error.message}` }, 500)
+    profile = data
+  } catch (err) {
+    return json({ error: `[3] Profil fetch hatasi: ${err instanceof Error ? err.message : err}` }, 500)
+  }
 
-    if (profileError || !isAdminProfile(profile)) {
-      return json({ error: 'Bu islem icin yetkiniz yok' }, 403)
-    }
+  if (!isAdminProfile(profile)) {
+    return json({ error: 'Bu islem icin yetkiniz yok' }, 403)
+  }
 
-    const { data: settings, error: settingsError } = await supabase
+  // Step 3: Read settings
+  let chatId: string | null = null
+  try {
+    const { data: settings, error } = await supabase
       .from('app_settings')
       .select('telegram_group_chat_id')
       .eq('id', 1)
       .maybeSingle()
+    if (error) return json({ error: `[4] Ayarlar hatasi: ${error.message}` }, 500)
+    chatId = settings?.telegram_group_chat_id ?? null
+  } catch (err) {
+    return json({ error: `[4] Ayarlar fetch hatasi: ${err instanceof Error ? err.message : err}` }, 500)
+  }
 
-    if (settingsError) {
-      return json({ error: `Ayarlar okunamadi: ${settingsError.message}` }, 500)
-    }
+  if (!chatId) {
+    return json({ error: 'Telegram grup Chat ID ayarlanmamis' }, 400)
+  }
 
-    const chatId = settings?.telegram_group_chat_id
-    if (!chatId) {
-      return json({ error: 'Telegram grup Chat ID ayarlanmamis' }, 400)
-    }
+  // Step 4: Check bot token
+  const botToken = process.env.TELEGRAM_BOT_TOKEN
+  if (!botToken) {
+    return json({ error: 'TELEGRAM_BOT_TOKEN ortam degiskeni tanimli degil' }, 500)
+  }
 
-    const botToken = process.env.TELEGRAM_BOT_TOKEN
-    if (!botToken) {
-      return json({ error: 'TELEGRAM_BOT_TOKEN ortam degiskeni tanimli degil' }, 500)
-    }
-
+  // Step 5: Send Telegram message
+  try {
     const telegramUrl = `https://api.telegram.org/bot${botToken}/sendMessage`
     const telegramRes = await fetch(telegramUrl, {
       method: 'POST',
@@ -62,12 +88,11 @@ export async function POST(_request: NextRequest) {
 
     if (!telegramRes.ok) {
       const desc = telegramBody?.description ?? 'Bilinmeyen hata'
-      return json({ error: `Telegram hatasi: ${desc}` }, 502)
+      return json({ error: `[5] Telegram API hatasi (${telegramRes.status}): ${desc}` }, 502)
     }
 
     return json({ ok: true })
   } catch (err) {
-    const message = err instanceof Error ? err.message : 'Bilinmeyen hata'
-    return json({ error: message }, 500)
+    return json({ error: `[5] Telegram fetch hatasi: ${err instanceof Error ? err.message : err}` }, 500)
   }
 }
