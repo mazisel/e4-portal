@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, useMemo } from 'react'
 import { Transaction, TransactionType, PaymentMethod, PAYMENT_METHOD_LABELS } from '@/types'
 import { useCategories } from '@/hooks/useCategories'
 import { useStaff } from '@/hooks/useStaff'
@@ -84,10 +84,10 @@ export function TransactionForm({ open, onClose, onSave, initial }: TransactionF
   const { suppliers } = useSuppliers(true)
   const { history, loading: historyLoading } = useTransactionHistory(initial?.id)
 
-  const categoryMap = Object.fromEntries(categories.map((c) => [c.id, c.name]))
-  const staffMap = Object.fromEntries(staff.map((s) => [s.id, s.name]))
-  const customerMap = Object.fromEntries(customers.map((c) => [c.id, c.name]))
-  const supplierMap = Object.fromEntries(suppliers.map((s) => [s.id, s.name]))
+  const categoryMap = useMemo(() => Object.fromEntries(categories.map((c) => [c.id, c.name])), [categories])
+  const staffMap = useMemo(() => Object.fromEntries(staff.map((s) => [s.id, s.name])), [staff])
+  const customerMap = useMemo(() => Object.fromEntries(customers.map((c) => [c.id, c.name])), [customers])
+  const supplierMap = useMemo(() => Object.fromEntries(suppliers.map((s) => [s.id, s.name])), [suppliers])
 
   const selectedCustomer = customers.find((c) => c.id === customerId)
   const canSendSms = type === 'income' && !!selectedCustomer?.phone

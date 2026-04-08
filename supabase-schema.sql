@@ -349,27 +349,66 @@ CREATE OR REPLACE TRIGGER trg_profiles_updated_at
   BEFORE UPDATE ON profiles
   FOR EACH ROW EXECUTE FUNCTION update_updated_at();
 
+-- ============================================================
+-- 7. UYGULAMA AYARLARI
+-- ============================================================
+
+CREATE TABLE IF NOT EXISTS app_settings (
+  id          integer PRIMARY KEY DEFAULT 1,
+  telegram_group_chat_id text,
+  updated_at  timestamptz NOT NULL DEFAULT now(),
+  CONSTRAINT  app_settings_singleton CHECK (id = 1)
+);
+
+-- Varsayılan satırı oluştur (yoksa)
+INSERT INTO app_settings (id) VALUES (1) ON CONFLICT (id) DO NOTHING;
+
+ALTER TABLE app_settings ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "app_settings_admin_select" ON app_settings;
+CREATE POLICY "app_settings_admin_select" ON app_settings
+  FOR SELECT USING (auth.uid() IS NOT NULL);
+
+DROP POLICY IF EXISTS "app_settings_admin_update" ON app_settings;
+CREATE POLICY "app_settings_admin_update" ON app_settings
+  FOR UPDATE USING (
+    EXISTS (
+      SELECT 1 FROM profiles WHERE id = auth.uid() AND role = 'admin'
+    )
+  );
+
+CREATE OR REPLACE TRIGGER trg_app_settings_updated_at
+  BEFORE UPDATE ON app_settings
+  FOR EACH ROW EXECUTE FUNCTION update_updated_at();
+
 -- Yeni kullanıcı kaydolduğunda otomatik profil oluştur
-CREATE OR REPLACE FUNCTION create_profile_for_user()
-RETURNS TRIGGER AS $$
+CREATE OR REPLACE FUNCTION public.create_profile_for_user()
+RETURNS TRIGGER
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
 BEGIN
-  INSERT INTO profiles (id, email, full_name)
+  INSERT INTO public.profiles (id, email, full_name, can_access_finance, role, is_active)
   VALUES (
     NEW.id,
     NEW.email,
-    COALESCE(NEW.raw_user_meta_data->>'full_name', NEW.raw_user_meta_data->>'name')
+    COALESCE(NEW.raw_user_meta_data->>'full_name', NEW.raw_user_meta_data->>'name'),
+    false,
+    'user',
+    true
   )
   ON CONFLICT (id) DO UPDATE SET
     email = EXCLUDED.email,
-    full_name = COALESCE(EXCLUDED.full_name, profiles.full_name);
+    full_name = COALESCE(EXCLUDED.full_name, public.profiles.full_name);
   RETURN NEW;
 END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
+$$;
 
 DROP TRIGGER IF EXISTS trg_create_profile ON auth.users;
 CREATE TRIGGER trg_create_profile
   AFTER INSERT ON auth.users
-  FOR EACH ROW EXECUTE FUNCTION create_profile_for_user();
+  FOR EACH ROW EXECUTE FUNCTION public.create_profile_for_user();
 
 -- ============================================================
 -- 7. TAKVİM PLANLARI (Personel haftalık planlayıcı)

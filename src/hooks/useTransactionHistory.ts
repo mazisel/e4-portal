@@ -7,7 +7,7 @@ import { TransactionHistory } from '@/types'
 export function useTransactionHistory(transactionId: string | undefined) {
   const [history, setHistory] = useState<TransactionHistory[]>([])
   const [loading, setLoading] = useState(false)
-  const supabase = createClient()
+  const [supabase] = useState(() => createClient())
 
   useEffect(() => {
     if (!transactionId) { setHistory([]); return }
@@ -21,7 +21,7 @@ export function useTransactionHistory(transactionId: string | undefined) {
         if (!error && data) setHistory(data)
         setLoading(false)
       })
-  }, [transactionId])
+  }, [supabase, transactionId])
 
   return { history, loading }
 }
