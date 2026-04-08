@@ -43,15 +43,25 @@ export function useActivity() {
 
   const fetchDay = useCallback(async (date: string) => {
     setLoading(true)
-    const { data, error } = await supabase
-      .from('activity_logs')
-      .select('*, profile:profiles(id, full_name, email)')
-      .eq('date', date)
-      .order('created_at', { ascending: true })
+    const [{ data: logsData, error }, { data: profilesData }] = await Promise.all([
+      supabase
+        .from('activity_logs')
+        .select('*')
+        .eq('date', date)
+        .order('created_at', { ascending: true }),
+      supabase
+        .from('profiles')
+        .select('id, full_name, email'),
+    ])
     if (error) {
       toast.error('Aktiviteler yüklenemedi')
     } else {
-      setLogs((data ?? []) as ActivityLog[])
+      const profileMap = Object.fromEntries((profilesData ?? []).map(p => [p.id, p]))
+      const merged = (logsData ?? []).map(l => ({
+        ...l,
+        profile: profileMap[l.user_id] ?? null,
+      }))
+      setLogs(merged as ActivityLog[])
     }
     setLoading(false)
   }, [supabase])
