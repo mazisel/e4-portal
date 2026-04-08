@@ -64,7 +64,7 @@ export function TelegramGroupSettings({ initialChatId }: TelegramGroupSettingsPr
     setTesting(true)
     try {
       const response = await fetch('/api/settings/telegram-test', { method: 'POST' })
-      const payload = await response.json()
+      const payload = await response.json().catch(() => ({}))
       if (!response.ok) throw new Error(payload.error ?? 'Test mesajı gönderilemedi')
       toast.success('Test mesajı gruba gönderildi!')
     } catch (error) {
