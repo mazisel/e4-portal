@@ -9,6 +9,9 @@ services:
     image: e4-portal:latest
     container_name: e4-portal
     restart: unless-stopped
+    dns:
+      - 8.8.8.8
+      - 8.8.4.4
     ports:
       - "7001:3000"
     environment:

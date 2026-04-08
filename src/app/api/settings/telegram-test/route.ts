@@ -2,9 +2,6 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase-server'
 import { isAdminProfile } from '@/lib/profile-utils'
 
-// Returns bot token + chat ID to authenticated admin users
-// The actual Telegram API call is made client-side because
-// the server environment cannot reach api.telegram.org (ETIMEDOUT)
 export async function POST(_request: NextRequest) {
   try {
     const supabase = await createClient()
@@ -44,9 +41,28 @@ export async function POST(_request: NextRequest) {
       return NextResponse.json({ error: 'TELEGRAM_BOT_TOKEN ortam degiskeni tanimli degil' }, { status: 500 })
     }
 
-    return NextResponse.json({ botToken, chatId })
+    // Send message to Telegram group
+    const telegramRes = await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        chat_id: chatId,
+        text: '✅ E4 Portal - Telegram bağlantısı başarıyla çalışıyor!',
+      }),
+    })
+
+    const telegramBody = await telegramRes.json().catch(() => null)
+
+    if (!telegramRes.ok) {
+      const desc = telegramBody?.description ?? 'Bilinmeyen hata'
+      return NextResponse.json({ error: `Telegram hatasi (${telegramRes.status}): ${desc}` }, { status: 502 })
+    }
+
+    return NextResponse.json({ ok: true })
   } catch (err) {
-    const message = err instanceof Error ? err.message : 'Bilinmeyen hata'
+    const message = err instanceof Error
+      ? `${err.message}${err.cause ? ` (${JSON.stringify(err.cause)})` : ''}`
+      : 'Bilinmeyen hata'
     return NextResponse.json({ error: message }, { status: 500 })
   }
 }
