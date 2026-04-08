@@ -33,6 +33,8 @@ export function useTransactions(filters?: TransactionFilters) {
       query = query.lte('transaction_date', filters.date_to)
     }
 
+    query = query.limit(200)
+
     const { data, error } = await query
     if (!error && data) setTransactions(data as Transaction[])
     setLoading(false)

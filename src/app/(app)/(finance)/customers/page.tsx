@@ -89,12 +89,14 @@ export default function CustomersPage() {
         </Card>
       )}
 
-      <CustomerForm
-        open={formOpen}
-        onClose={handleClose}
-        onSave={handleSave}
-        initial={editing}
-      />
+      {formOpen && (
+        <CustomerForm
+          open
+          onClose={handleClose}
+          onSave={handleSave}
+          initial={editing}
+        />
+      )}
     </div>
   )
 }

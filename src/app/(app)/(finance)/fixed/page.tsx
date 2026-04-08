@@ -232,13 +232,15 @@ export default function FixedPage() {
         </CardContent>
       </Card>
 
-      <FixedItemForm
-        open={formOpen}
-        onClose={handleClose}
-        onSave={handleSave}
-        initial={editing}
-        defaultType={defaultType}
-      />
+      {formOpen && (
+        <FixedItemForm
+          open
+          onClose={handleClose}
+          onSave={handleSave}
+          initial={editing}
+          defaultType={defaultType}
+        />
+      )}
     </div>
   )
 }

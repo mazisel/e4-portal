@@ -94,12 +94,14 @@ export default function StaffPage() {
         </Card>
       )}
 
-      <StaffForm
-        open={formOpen}
-        onClose={handleClose}
-        onSave={handleSave}
-        initial={editing}
-      />
+      {formOpen && (
+        <StaffForm
+          open
+          onClose={handleClose}
+          onSave={handleSave}
+          initial={editing}
+        />
+      )}
     </div>
   )
 }

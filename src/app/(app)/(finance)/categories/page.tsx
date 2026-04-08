@@ -85,13 +85,15 @@ export default function CategoriesPage() {
         </Card>
       </div>
 
-      <CategoryForm
-        open={formOpen}
-        onClose={handleClose}
-        onSave={handleSave}
-        initial={editing}
-        defaultType="expense"
-      />
+      {formOpen && (
+        <CategoryForm
+          open
+          onClose={handleClose}
+          onSave={handleSave}
+          initial={editing}
+          defaultType="expense"
+        />
+      )}
     </div>
   )
 }

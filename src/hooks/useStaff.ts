@@ -1,27 +1,19 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useMemo } from 'react'
 import { createClient } from '@/lib/supabase'
 import { Staff } from '@/types'
 import { toast } from 'sonner'
+import { useSharedData } from '@/contexts/SharedDataContext'
 
 export function useStaff(activeOnly = false) {
-  const [staff, setStaff] = useState<Staff[]>([])
-  const [loading, setLoading] = useState(true)
+  const { staff: allStaff, setStaff, loading } = useSharedData()
   const [supabase] = useState(() => createClient())
 
-  const fetchStaff = useCallback(async () => {
-    setLoading(true)
-    let query = supabase.from('staff').select('*').order('name')
-    if (activeOnly) query = query.eq('active', true)
-    const { data, error } = await query
-    if (!error && data) setStaff(data)
-    setLoading(false)
-  }, [supabase, activeOnly])
-
-  useEffect(() => {
-    fetchStaff()
-  }, [fetchStaff])
+  const staff = useMemo(() => {
+    if (!activeOnly) return allStaff
+    return allStaff.filter(s => s.active)
+  }, [allStaff, activeOnly])
 
   const createStaff = async (values: Omit<Staff, 'id' | 'user_id' | 'created_at' | 'updated_at'>) => {
     const { data: { user } } = await supabase.auth.getUser()
@@ -33,15 +25,12 @@ export function useStaff(activeOnly = false) {
       .single()
     if (error) { toast.error('Personel eklenemedi: ' + error.message); return false }
     toast.success('Personel eklendi')
-    setStaff(prev => {
-      if (activeOnly && !data.active) return prev
-      return [...prev, data].sort((a, b) => a.name.localeCompare(b.name))
-    })
+    setStaff(prev => [...prev, data].sort((a, b) => a.name.localeCompare(b.name)))
     return true
   }
 
   const updateStaff = async (id: string, values: Partial<Staff>) => {
-    const previous = staff.find(s => s.id === id)
+    const previous = allStaff.find(s => s.id === id)
     setStaff(prev => prev.map(s => s.id === id ? { ...s, ...values } : s))
     const { error } = await supabase.from('staff').update(values).eq('id', id)
     if (error) {
@@ -54,7 +43,7 @@ export function useStaff(activeOnly = false) {
   }
 
   const deleteStaff = async (id: string) => {
-    const previous = staff.find(s => s.id === id)
+    const previous = allStaff.find(s => s.id === id)
     setStaff(prev => prev.filter(s => s.id !== id))
     const { error } = await supabase.from('staff').delete().eq('id', id)
     if (error) {
@@ -66,5 +55,5 @@ export function useStaff(activeOnly = false) {
     return true
   }
 
-  return { staff, loading, createStaff, updateStaff, deleteStaff, refetch: fetchStaff }
+  return { staff, loading, createStaff, updateStaff, deleteStaff, refetch: () => {} }
 }

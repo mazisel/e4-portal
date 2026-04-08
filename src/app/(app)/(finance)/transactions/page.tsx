@@ -63,12 +63,14 @@ export default function TransactionsPage() {
         onEdit={handleEdit}
       />
 
-      <TransactionForm
-        open={formOpen}
-        onClose={handleClose}
-        onSave={handleSave}
-        initial={editing}
-      />
+      {formOpen && (
+        <TransactionForm
+          open
+          onClose={handleClose}
+          onSave={handleSave}
+          initial={editing}
+        />
+      )}
     </div>
   )
 }

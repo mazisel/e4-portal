@@ -1,34 +1,19 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useMemo } from 'react'
 import { createClient } from '@/lib/supabase'
 import { Category, TransactionType } from '@/types'
 import { toast } from 'sonner'
+import { useSharedData } from '@/contexts/SharedDataContext'
 
 export function useCategories(filterType?: TransactionType) {
-  const [categories, setCategories] = useState<Category[]>([])
-  const [loading, setLoading] = useState(true)
+  const { categories: allCategories, setCategories, loading } = useSharedData()
   const [supabase] = useState(() => createClient())
 
-  const fetchCategories = useCallback(async () => {
-    setLoading(true)
-    let query = supabase
-      .from('categories')
-      .select('*')
-      .order('name')
-
-    if (filterType) {
-      query = query.eq('type', filterType)
-    }
-
-    const { data, error } = await query
-    if (!error && data) setCategories(data)
-    setLoading(false)
-  }, [supabase, filterType])
-
-  useEffect(() => {
-    fetchCategories()
-  }, [fetchCategories])
+  const categories = useMemo(() => {
+    if (!filterType) return allCategories
+    return allCategories.filter(c => c.type === filterType)
+  }, [allCategories, filterType])
 
   const createCategory = async (values: Omit<Category, 'id' | 'user_id' | 'created_at' | 'updated_at'>) => {
     const { data: { user } } = await supabase.auth.getUser()
@@ -43,15 +28,12 @@ export function useCategories(filterType?: TransactionType) {
       return false
     }
     toast.success('Kategori eklendi')
-    setCategories(prev => {
-      if (filterType && data.type !== filterType) return prev
-      return [...prev, data].sort((a, b) => a.name.localeCompare(b.name))
-    })
+    setCategories(prev => [...prev, data].sort((a, b) => a.name.localeCompare(b.name)))
     return true
   }
 
   const updateCategory = async (id: string, values: Partial<Category>) => {
-    const previous = categories.find(c => c.id === id)
+    const previous = allCategories.find(c => c.id === id)
     setCategories(prev => prev.map(c => c.id === id ? { ...c, ...values } : c))
     const { error } = await supabase.from('categories').update(values).eq('id', id)
     if (error) {
@@ -64,7 +46,7 @@ export function useCategories(filterType?: TransactionType) {
   }
 
   const deleteCategory = async (id: string) => {
-    const previous = categories.find(c => c.id === id)
+    const previous = allCategories.find(c => c.id === id)
     setCategories(prev => prev.filter(c => c.id !== id))
     const { error } = await supabase.from('categories').delete().eq('id', id)
     if (error) {
@@ -76,5 +58,5 @@ export function useCategories(filterType?: TransactionType) {
     return true
   }
 
-  return { categories, loading, createCategory, updateCategory, deleteCategory, refetch: fetchCategories }
+  return { categories, loading, createCategory, updateCategory, deleteCategory, refetch: () => {} }
 }

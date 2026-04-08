@@ -1,27 +1,19 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useMemo } from 'react'
 import { createClient } from '@/lib/supabase'
 import { Supplier } from '@/types'
 import { toast } from 'sonner'
+import { useSharedData } from '@/contexts/SharedDataContext'
 
 export function useSuppliers(activeOnly = false) {
-  const [suppliers, setSuppliers] = useState<Supplier[]>([])
-  const [loading, setLoading] = useState(true)
+  const { suppliers: allSuppliers, setSuppliers, loading } = useSharedData()
   const [supabase] = useState(() => createClient())
 
-  const fetchSuppliers = useCallback(async () => {
-    setLoading(true)
-    let query = supabase.from('suppliers').select('*').order('name')
-    if (activeOnly) query = query.eq('active', true)
-    const { data, error } = await query
-    if (!error && data) setSuppliers(data)
-    setLoading(false)
-  }, [supabase, activeOnly])
-
-  useEffect(() => {
-    fetchSuppliers()
-  }, [fetchSuppliers])
+  const suppliers = useMemo(() => {
+    if (!activeOnly) return allSuppliers
+    return allSuppliers.filter(s => s.active)
+  }, [allSuppliers, activeOnly])
 
   const createSupplier = async (values: Omit<Supplier, 'id' | 'user_id' | 'created_at' | 'updated_at'>) => {
     const { data: { user } } = await supabase.auth.getUser()
@@ -33,15 +25,12 @@ export function useSuppliers(activeOnly = false) {
       .single()
     if (error) { toast.error('Tedarikçi eklenemedi: ' + error.message); return false }
     toast.success('Tedarikçi eklendi')
-    setSuppliers(prev => {
-      if (activeOnly && !data.active) return prev
-      return [...prev, data].sort((a, b) => a.name.localeCompare(b.name))
-    })
+    setSuppliers(prev => [...prev, data].sort((a, b) => a.name.localeCompare(b.name)))
     return true
   }
 
   const updateSupplier = async (id: string, values: Partial<Supplier>) => {
-    const previous = suppliers.find(s => s.id === id)
+    const previous = allSuppliers.find(s => s.id === id)
     setSuppliers(prev => prev.map(s => s.id === id ? { ...s, ...values } : s))
     const { error } = await supabase.from('suppliers').update(values).eq('id', id)
     if (error) {
@@ -54,7 +43,7 @@ export function useSuppliers(activeOnly = false) {
   }
 
   const deleteSupplier = async (id: string) => {
-    const previous = suppliers.find(s => s.id === id)
+    const previous = allSuppliers.find(s => s.id === id)
     setSuppliers(prev => prev.filter(s => s.id !== id))
     const { error } = await supabase.from('suppliers').delete().eq('id', id)
     if (error) {
@@ -66,5 +55,5 @@ export function useSuppliers(activeOnly = false) {
     return true
   }
 
-  return { suppliers, loading, createSupplier, updateSupplier, deleteSupplier, refetch: fetchSuppliers }
+  return { suppliers, loading, createSupplier, updateSupplier, deleteSupplier, refetch: () => {} }
 }

@@ -89,12 +89,14 @@ export default function SuppliersPage() {
         </Card>
       )}
 
-      <SupplierForm
-        open={formOpen}
-        onClose={handleClose}
-        onSave={handleSave}
-        initial={editing}
-      />
+      {formOpen && (
+        <SupplierForm
+          open
+          onClose={handleClose}
+          onSave={handleSave}
+          initial={editing}
+        />
+      )}
     </div>
   )
 }

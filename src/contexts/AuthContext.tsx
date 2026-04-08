@@ -78,6 +78,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       return
     }
 
+    // Aynı user için profili tekrar çekme (TOKEN_REFRESHED vb. için)
+    if (nextSession.user.id === user?.id && profile) {
+      return
+    }
+
     const nextProfile = await fetchProfile(
       nextSession.user.id,
       nextSession.user.email,
@@ -91,7 +96,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setProfile(null)
       router.push('/login')
     }
-  }, [fetchProfile, router, supabase])
+  }, [fetchProfile, router, supabase, user?.id, profile])
 
   useEffect(() => {
     let active = true
