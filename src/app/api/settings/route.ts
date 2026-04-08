@@ -27,17 +27,17 @@ export async function GET() {
   const adminCheck = await getCurrentAdminProfile()
   if ('error' in adminCheck) return adminCheck.error
 
-  const { data, error } = await adminCheck.supabase
+  const { data } = await adminCheck.supabase
     .from('app_settings')
     .select('telegram_group_chat_id, updated_at')
     .eq('id', 1)
-    .single()
+    .maybeSingle()
 
-  if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 })
-  }
-
-  return NextResponse.json({ settings: data })
+  return NextResponse.json({
+    settings: {
+      telegram_group_chat_id: data?.telegram_group_chat_id ?? null,
+    },
+  })
 }
 
 export async function PATCH(request: NextRequest) {
@@ -55,8 +55,7 @@ export async function PATCH(request: NextRequest) {
 
   const { data, error } = await adminCheck.supabase
     .from('app_settings')
-    .update({ telegram_group_chat_id: telegramGroupChatId })
-    .eq('id', 1)
+    .upsert({ id: 1, telegram_group_chat_id: telegramGroupChatId })
     .select('telegram_group_chat_id, updated_at')
     .single()
 
