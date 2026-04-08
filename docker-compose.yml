@@ -15,6 +15,7 @@ services:
     ports:
       - "7001:3000"
     environment:
+      NODE_OPTIONS: "--dns-result-order=ipv4first"
       NETGSM_USERCODE: ${NETGSM_USERCODE}
       NETGSM_PASSWORD: ${NETGSM_PASSWORD}
       NETGSM_MSGHEADER: ${NETGSM_MSGHEADER}
