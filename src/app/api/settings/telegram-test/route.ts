@@ -1,6 +1,13 @@
-import { NextRequest, NextResponse } from 'next/server'
+import { type NextRequest } from 'next/server'
 import { createClient } from '@/lib/supabase-server'
 import { isAdminProfile } from '@/lib/profile-utils'
+
+function json(data: Record<string, unknown>, status = 200) {
+  return new Response(JSON.stringify(data), {
+    status,
+    headers: { 'Content-Type': 'application/json' },
+  })
+}
 
 export async function POST(_request: NextRequest) {
   try {
@@ -8,7 +15,7 @@ export async function POST(_request: NextRequest) {
     const { data: { user } } = await supabase.auth.getUser()
 
     if (!user) {
-      return NextResponse.json({ error: 'Yetkisiz erisim' }, { status: 401 })
+      return json({ error: 'Yetkisiz erisim' }, 401)
     }
 
     const { data: profile, error: profileError } = await supabase
@@ -18,7 +25,7 @@ export async function POST(_request: NextRequest) {
       .single()
 
     if (profileError || !isAdminProfile(profile)) {
-      return NextResponse.json({ error: 'Bu islem icin yetkiniz yok' }, { status: 403 })
+      return json({ error: 'Bu islem icin yetkiniz yok' }, 403)
     }
 
     const { data: settings, error: settingsError } = await supabase
@@ -28,17 +35,17 @@ export async function POST(_request: NextRequest) {
       .maybeSingle()
 
     if (settingsError) {
-      return NextResponse.json({ error: `Ayarlar okunamadi: ${settingsError.message}` }, { status: 500 })
+      return json({ error: `Ayarlar okunamadi: ${settingsError.message}` }, 500)
     }
 
     const chatId = settings?.telegram_group_chat_id
     if (!chatId) {
-      return NextResponse.json({ error: 'Telegram grup Chat ID ayarlanmamis' }, { status: 400 })
+      return json({ error: 'Telegram grup Chat ID ayarlanmamis' }, 400)
     }
 
     const botToken = process.env.TELEGRAM_BOT_TOKEN
     if (!botToken) {
-      return NextResponse.json({ error: 'TELEGRAM_BOT_TOKEN ortam degiskeni tanimli degil' }, { status: 500 })
+      return json({ error: 'TELEGRAM_BOT_TOKEN ortam degiskeni tanimli degil' }, 500)
     }
 
     const telegramUrl = `https://api.telegram.org/bot${botToken}/sendMessage`
@@ -55,12 +62,12 @@ export async function POST(_request: NextRequest) {
 
     if (!telegramRes.ok) {
       const desc = telegramBody?.description ?? 'Bilinmeyen hata'
-      return NextResponse.json({ error: `Telegram hatasi: ${desc}` }, { status: 502 })
+      return json({ error: `Telegram hatasi: ${desc}` }, 502)
     }
 
-    return NextResponse.json({ ok: true })
+    return json({ ok: true })
   } catch (err) {
     const message = err instanceof Error ? err.message : 'Bilinmeyen hata'
-    return NextResponse.json({ error: message }, { status: 500 })
+    return json({ error: message }, 500)
   }
 }
