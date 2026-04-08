@@ -26,7 +26,7 @@ export function useCalendar() {
   const [users, setUsers] = useState<CalendarUser[]>([])
   const [currentUserId, setCurrentUserId] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
-  const supabase = createClient()
+  const [supabase] = useState(() => createClient())
 
   const fetchUsers = useCallback(async () => {
     const { data: { user } } = await supabase.auth.getUser()
@@ -37,7 +37,7 @@ export function useCalendar() {
       .select('id, email, full_name')
       .order('full_name', { ascending: true })
     if (data) setUsers(data as CalendarUser[])
-  }, [])
+  }, [supabase])
 
   const fetchWeek = useCallback(async (weekStart: string, targetUserId: string) => {
     setLoading(true)
@@ -54,7 +54,7 @@ export function useCalendar() {
       setPlans(data ?? [])
     }
     setLoading(false)
-  }, [])
+  }, [supabase])
 
   // hourStart dahil, hourEnd hariç (exclusive). Örn: 9-11 = 09:00-11:00 (2 saat)
   const savePlan = useCallback(async (
@@ -113,14 +113,14 @@ export function useCalendar() {
       return [...filtered, data as CalendarPlan]
     })
     toast.success('Plan kaydedildi')
-  }, [plans])
+  }, [supabase, plans])
 
   const deletePlan = useCallback(async (id: string) => {
     const { error } = await supabase.from('calendar_plans').delete().eq('id', id)
     if (error) { toast.error('Plan silinemedi'); return }
     setPlans(prev => prev.filter(p => p.id !== id))
     toast.success('Plan silindi')
-  }, [])
+  }, [supabase])
 
   return { plans, users, currentUserId, loading, fetchUsers, fetchWeek, savePlan, deletePlan }
 }

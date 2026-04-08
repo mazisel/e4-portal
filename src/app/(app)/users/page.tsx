@@ -1,6 +1,7 @@
 import { createClient } from '@/lib/supabase-server'
 import { normalizeProfileRecord } from '@/lib/profile-utils'
 import { UserManagementTable, type ManagedUser } from '@/components/users/UserManagementTable'
+import { TelegramGroupSettings } from '@/components/users/TelegramGroupSettings'
 import { Card, CardContent } from '@/components/ui/card'
 import { ShieldAlert } from 'lucide-react'
 import Link from 'next/link'
@@ -42,23 +43,25 @@ async function getPageData() {
       currentUserId: user.id,
       allowed: false,
       users: [] as ManagedUser[],
+      telegramGroupChatId: null as string | null,
     }
   }
 
-  const { data: users } = await supabase
-    .from('profiles')
-    .select('*')
-    .order('full_name', { ascending: true })
+  const [{ data: users }, { data: settings }] = await Promise.all([
+    supabase.from('profiles').select('*').order('full_name', { ascending: true }),
+    supabase.from('app_settings').select('telegram_group_chat_id').eq('id', 1).single(),
+  ])
 
   return {
     currentUserId: user.id,
     allowed: true,
     users: (users ?? []).map(userRecord => normalizeManagedUser(userRecord as Record<string, unknown>)),
+    telegramGroupChatId: (settings?.telegram_group_chat_id as string | null) ?? null,
   }
 }
 
 export default async function UsersPage() {
-  const { currentUserId, allowed, users } = await getPageData()
+  const { currentUserId, allowed, users, telegramGroupChatId } = await getPageData()
 
   if (!allowed) {
     return (
@@ -83,5 +86,10 @@ export default async function UsersPage() {
     )
   }
 
-  return <UserManagementTable initialUsers={users} currentUserId={currentUserId} />
+  return (
+    <div className="space-y-6">
+      <UserManagementTable initialUsers={users} currentUserId={currentUserId} />
+      <TelegramGroupSettings initialChatId={telegramGroupChatId} />
+    </div>
+  )
 }

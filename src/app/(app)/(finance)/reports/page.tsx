@@ -1,14 +1,22 @@
 'use client'
 
 import { useState } from 'react'
+import dynamic from 'next/dynamic'
 import { useReports } from '@/hooks/useReports'
 import { SummaryCards } from '@/components/reports/SummaryCards'
-import { MonthlyBarChart } from '@/components/reports/MonthlyBarChart'
-import { CategoryPieChart } from '@/components/reports/CategoryPieChart'
+import { Skeleton } from '@/components/ui/skeleton'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+
+const MonthlyBarChart = dynamic(
+  () => import('@/components/reports/MonthlyBarChart').then(m => ({ default: m.MonthlyBarChart })),
+  { loading: () => <Skeleton className="h-72 w-full" />, ssr: false }
+)
+const CategoryPieChart = dynamic(
+  () => import('@/components/reports/CategoryPieChart').then(m => ({ default: m.CategoryPieChart })),
+  { loading: () => <Skeleton className="h-56 w-full" />, ssr: false }
+)
 import { Button } from '@/components/ui/button'
 import { ChevronLeft, ChevronRight } from 'lucide-react'
-import { Skeleton } from '@/components/ui/skeleton'
 import { formatCurrency } from '@/lib/utils'
 import {
   Table,

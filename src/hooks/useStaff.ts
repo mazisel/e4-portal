@@ -8,7 +8,7 @@ import { toast } from 'sonner'
 export function useStaff(activeOnly = false) {
   const [staff, setStaff] = useState<Staff[]>([])
   const [loading, setLoading] = useState(true)
-  const supabase = createClient()
+  const [supabase] = useState(() => createClient())
 
   const fetchStaff = useCallback(async () => {
     setLoading(true)
@@ -17,7 +17,7 @@ export function useStaff(activeOnly = false) {
     const { data, error } = await query
     if (!error && data) setStaff(data)
     setLoading(false)
-  }, [activeOnly])
+  }, [supabase, activeOnly])
 
   useEffect(() => {
     fetchStaff()
@@ -26,26 +26,43 @@ export function useStaff(activeOnly = false) {
   const createStaff = async (values: Omit<Staff, 'id' | 'user_id' | 'created_at' | 'updated_at'>) => {
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) { toast.error('Oturum açmanız gerekiyor'); return false }
-    const { error } = await supabase.from('staff').insert({ ...values, user_id: user.id })
+    const { data, error } = await supabase
+      .from('staff')
+      .insert({ ...values, user_id: user.id })
+      .select('*')
+      .single()
     if (error) { toast.error('Personel eklenemedi: ' + error.message); return false }
     toast.success('Personel eklendi')
-    await fetchStaff()
+    setStaff(prev => {
+      if (activeOnly && !data.active) return prev
+      return [...prev, data].sort((a, b) => a.name.localeCompare(b.name))
+    })
     return true
   }
 
   const updateStaff = async (id: string, values: Partial<Staff>) => {
+    const previous = staff.find(s => s.id === id)
+    setStaff(prev => prev.map(s => s.id === id ? { ...s, ...values } : s))
     const { error } = await supabase.from('staff').update(values).eq('id', id)
-    if (error) { toast.error('Personel güncellenemedi: ' + error.message); return false }
+    if (error) {
+      toast.error('Personel güncellenemedi: ' + error.message)
+      if (previous) setStaff(prev => prev.map(s => s.id === id ? previous : s))
+      return false
+    }
     toast.success('Personel güncellendi')
-    await fetchStaff()
     return true
   }
 
   const deleteStaff = async (id: string) => {
+    const previous = staff.find(s => s.id === id)
+    setStaff(prev => prev.filter(s => s.id !== id))
     const { error } = await supabase.from('staff').delete().eq('id', id)
-    if (error) { toast.error('Personel silinemedi. Bu personele ait işlemler var olabilir.'); return false }
+    if (error) {
+      toast.error('Personel silinemedi. Bu personele ait işlemler var olabilir.')
+      if (previous) setStaff(prev => [...prev, previous].sort((a, b) => a.name.localeCompare(b.name)))
+      return false
+    }
     toast.success('Personel silindi')
-    await fetchStaff()
     return true
   }
 

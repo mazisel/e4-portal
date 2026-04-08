@@ -9,7 +9,7 @@ export function useReports(year: number) {
   const [incomeByCategory, setIncomeByCategory] = useState<CategoryReport[]>([])
   const [expenseByCategory, setExpenseByCategory] = useState<CategoryReport[]>([])
   const [loading, setLoading] = useState(true)
-  const supabase = createClient()
+  const [supabase] = useState(() => createClient())
 
   useEffect(() => {
     const fetchReports = async () => {
@@ -20,7 +20,7 @@ export function useReports(year: number) {
 
       const { data: transactions } = await supabase
         .from('transactions')
-        .select('*, category:categories(*)')
+        .select('type, amount, transaction_date, category:categories(id, name, color)')
         .gte('transaction_date', dateFrom)
         .lte('transaction_date', dateTo)
 
@@ -46,7 +46,7 @@ export function useReports(year: number) {
       const incomeMap: Record<string, CategoryReport> = {}
       const expenseMap: Record<string, CategoryReport> = {}
       transactions.forEach((t) => {
-        const cat = t.category
+        const cat = t.category as { id: string; name: string; color: string } | null
         if (!cat) return
         const map = t.type === 'income' ? incomeMap : expenseMap
         if (!map[cat.id]) {
@@ -66,7 +66,7 @@ export function useReports(year: number) {
     }
 
     fetchReports()
-  }, [year])
+  }, [supabase, year])
 
   const totals = monthlyData.reduce(
     (acc, m) => ({
@@ -84,7 +84,7 @@ export function useDashboardStats() {
   const [stats, setStats] = useState({ monthIncome: 0, monthExpense: 0, monthNet: 0, ytdNet: 0 })
   const [recentTransactions, setRecentTransactions] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
-  const supabase = createClient()
+  const [supabase] = useState(() => createClient())
 
   useEffect(() => {
     const fetchStats = async () => {
@@ -137,7 +137,7 @@ export function useDashboardStats() {
     }
 
     fetchStats()
-  }, [])
+  }, [supabase])
 
   return { stats, recentTransactions, loading }
 }
