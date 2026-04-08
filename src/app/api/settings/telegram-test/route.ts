@@ -75,24 +75,78 @@ export async function POST(_request: NextRequest) {
   // Step 5: Send Telegram message
   try {
     const telegramUrl = `https://api.telegram.org/bot${botToken}/sendMessage`
+    const payload = JSON.stringify({
+      chat_id: chatId,
+      text: '✅ E4 Portal - Telegram bağlantısı başarıyla çalışıyor!',
+    })
+
+    // Use AbortController with timeout and cache: 'no-store' to avoid Next.js fetch issues
+    const controller = new AbortController()
+    const timeout = setTimeout(() => controller.abort(), 10000)
+
     const telegramRes = await fetch(telegramUrl, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        chat_id: chatId,
-        text: '✅ E4 Portal - Telegram bağlantısı başarıyla çalışıyor!',
-      }),
+      body: payload,
+      cache: 'no-store',
+      signal: controller.signal,
+      // @ts-expect-error -- Next.js extended fetch option
+      next: { revalidate: 0 },
     })
+
+    clearTimeout(timeout)
 
     const telegramBody = await telegramRes.json().catch(() => null)
 
     if (!telegramRes.ok) {
       const desc = telegramBody?.description ?? 'Bilinmeyen hata'
-      return json({ error: `[5] Telegram API hatasi (${telegramRes.status}): ${desc}` }, 502)
+      return json({ error: `Telegram API hatasi (${telegramRes.status}): ${desc}` }, 502)
     }
 
     return json({ ok: true })
   } catch (err) {
-    return json({ error: `[5] Telegram fetch hatasi: ${err instanceof Error ? err.message : err}` }, 500)
+    // If Next.js patched fetch fails, try with undici/node native
+    try {
+      const https = await import('node:https')
+      const result = await new Promise<{ ok: boolean; status: number; body: string }>((resolve, reject) => {
+        const postData = JSON.stringify({
+          chat_id: chatId,
+          text: '✅ E4 Portal - Telegram bağlantısı başarıyla çalışıyor!',
+        })
+        const url = new URL(`https://api.telegram.org/bot${botToken}/sendMessage`)
+        const req = https.request(
+          {
+            hostname: url.hostname,
+            path: url.pathname,
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Content-Length': Buffer.byteLength(postData),
+            },
+          },
+          (res) => {
+            let data = ''
+            res.on('data', (chunk: string) => { data += chunk })
+            res.on('end', () => {
+              resolve({ ok: res.statusCode === 200, status: res.statusCode ?? 0, body: data })
+            })
+          },
+        )
+        req.on('error', reject)
+        req.write(postData)
+        req.end()
+      })
+
+      if (!result.ok) {
+        const parsed = JSON.parse(result.body).description ?? 'Bilinmeyen hata'
+        return json({ error: `Telegram API hatasi (${result.status}): ${parsed}` }, 502)
+      }
+
+      return json({ ok: true })
+    } catch (fallbackErr) {
+      return json({
+        error: `Telegram gonderilemedi. fetch: ${err instanceof Error ? err.message : err}, fallback: ${fallbackErr instanceof Error ? fallbackErr.message : fallbackErr}`,
+      }, 500)
+    }
   }
 }
