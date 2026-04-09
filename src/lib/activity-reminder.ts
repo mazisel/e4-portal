@@ -1,4 +1,5 @@
 import { createAdminClient } from '@/lib/supabase-admin'
+import { request as httpsRequest } from 'node:https'
 
 const REMINDER_TIME_ZONE = 'Europe/Istanbul'
 const REMINDER_SLOTS = new Set(['22:00', '23:00', '23:15', '23:30', '23:45'])
@@ -94,6 +95,38 @@ async function getTelegramChatId(): Promise<string> {
   return process.env.TELEGRAM_CHAT_ID ?? DEFAULT_TELEGRAM_CHAT_ID
 }
 
+function telegramPost(botToken: string, chatId: string, text: string): Promise<void> {
+  return new Promise((resolve, reject) => {
+    const postData = JSON.stringify({ chat_id: chatId, text })
+    const req = httpsRequest(
+      {
+        hostname: 'api.telegram.org',
+        path: `/bot${botToken}/sendMessage`,
+        method: 'POST',
+        family: 4, // Force IPv4
+        headers: {
+          'Content-Type': 'application/json',
+          'Content-Length': Buffer.byteLength(postData),
+        },
+      },
+      (res) => {
+        let body = ''
+        res.on('data', (chunk: Buffer) => { body += chunk.toString() })
+        res.on('end', () => {
+          if (res.statusCode === 200) {
+            resolve()
+          } else {
+            reject(new Error(`Telegram mesaji gonderilemedi (${res.statusCode}): ${body}`))
+          }
+        })
+      },
+    )
+    req.on('error', reject)
+    req.write(postData)
+    req.end()
+  })
+}
+
 async function sendTelegramMessage(text: string) {
   const botToken = process.env.TELEGRAM_BOT_TOKEN
   if (!botToken) {
@@ -101,17 +134,7 @@ async function sendTelegramMessage(text: string) {
   }
 
   const chatId = await getTelegramChatId()
-
-  const response = await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ chat_id: chatId, text }),
-  })
-
-  if (!response.ok) {
-    const body = await response.text()
-    throw new Error(`Telegram mesaji gonderilemedi: ${body}`)
-  }
+  await telegramPost(botToken.trim(), chatId, text)
 }
 
 async function getMissingUsers(todayKey: string) {
