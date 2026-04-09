@@ -19,7 +19,6 @@ interface SubItem {
 }
 
 const financeItems: SubItem[] = [
-  { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
   { href: '/transactions', label: 'İşlemler', icon: ArrowLeftRight },
   { href: '/kasa', label: 'Kasa', icon: Wallet },
   { href: '/debts', label: 'Borçlar', icon: CreditCard },
@@ -32,7 +31,80 @@ const financeItems: SubItem[] = [
   { href: '/fixed', label: 'Sabitler', icon: SlidersHorizontal },
 ]
 
+const activityItems: SubItem[] = [
+  { href: '/activity', label: 'Günlük Kayıt', icon: ClipboardList },
+]
+
+const calendarItems: SubItem[] = [
+  { href: '/calendar', label: 'Haftalık Plan', icon: CalendarDays },
+]
+
 const financePaths = new Set(financeItems.map(i => i.href))
+
+function NavLink({ href, icon: Icon, label, pathname, onClose, size = 'normal' }: {
+  href: string
+  icon: typeof LayoutDashboard
+  label: string
+  pathname: string
+  onClose: () => void
+  size?: 'normal' | 'small'
+}) {
+  const active = pathname === href || pathname.startsWith(href + '/')
+  const isSmall = size === 'small'
+
+  return (
+    <Link
+      href={href}
+      onClick={onClose}
+      className={cn(
+        'flex items-center gap-2.5 rounded-md font-medium transition-colors',
+        isSmall ? 'px-2.5 py-1.5 text-[13px]' : 'px-3 py-2 text-sm rounded-lg',
+        active
+          ? 'bg-sidebar-primary/15 text-sidebar-primary'
+          : 'text-muted-foreground hover:bg-sidebar-accent hover:text-foreground'
+      )}
+    >
+      <Icon className={cn('shrink-0', isSmall ? 'w-3.5 h-3.5' : 'w-4 h-4')} />
+      {label}
+    </Link>
+  )
+}
+
+function AccordionSection({ icon: Icon, label, items, isOpen, onToggle, isActivePath, pathname, onClose }: {
+  icon: typeof LayoutDashboard
+  label: string
+  items: SubItem[]
+  isOpen: boolean
+  onToggle: () => void
+  isActivePath: boolean
+  pathname: string
+  onClose: () => void
+}) {
+  return (
+    <div>
+      <button
+        onClick={onToggle}
+        className={cn(
+          'flex w-full items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-colors',
+          isActivePath
+            ? 'text-sidebar-primary'
+            : 'text-muted-foreground hover:bg-sidebar-accent hover:text-foreground'
+        )}
+      >
+        <Icon className="w-4 h-4 shrink-0" />
+        <span className="flex-1 text-left">{label}</span>
+        <ChevronDown className={cn('w-3.5 h-3.5 transition-transform', isOpen && 'rotate-180')} />
+      </button>
+      {isOpen && (
+        <div className="ml-3 mt-1 space-y-0.5 border-l border-sidebar-border pl-3">
+          {items.map((item) => (
+            <NavLink key={item.href} href={item.href} icon={item.icon} label={item.label} pathname={pathname} onClose={onClose} size="small" />
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
 
 interface AppSidebarProps {
   open: boolean
@@ -46,9 +118,12 @@ export function AppSidebar({ open, onClose }: AppSidebarProps) {
   const canFinance = profile?.can_access_finance ?? false
 
   const isFinancePath = financePaths.has(pathname) || [...financePaths].some(p => pathname.startsWith(p + '/'))
-  const [financeOpen, setFinanceOpen] = useState(isFinancePath)
+  const isActivityPath = pathname === '/activity' || pathname.startsWith('/activity/')
+  const isCalendarPath = pathname === '/calendar' || pathname.startsWith('/calendar/')
 
-  const isActive = (href: string) => pathname === href || pathname.startsWith(href + '/')
+  const [financeOpen, setFinanceOpen] = useState(isFinancePath)
+  const [activityOpen, setActivityOpen] = useState(isActivityPath)
+  const [calendarOpen, setCalendarOpen] = useState(isCalendarPath)
 
   return (
     <>
@@ -81,94 +156,50 @@ export function AppSidebar({ open, onClose }: AppSidebarProps) {
         {/* Navigation */}
         <nav className="flex-1 px-2 py-3 overflow-y-auto space-y-1">
 
-          {/* Finans — accordion */}
+          {/* Dashboard — üst seviye, bağımsız */}
+          <NavLink href="/dashboard" icon={LayoutDashboard} label="Dashboard" pathname={pathname} onClose={onClose} />
+
+          {/* Finans — accordion, yetkiye göre */}
           {canFinance && (
-            <div>
-              <button
-                onClick={() => setFinanceOpen(!financeOpen)}
-                className={cn(
-                  'flex w-full items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-colors',
-                  isFinancePath
-                    ? 'text-sidebar-primary'
-                    : 'text-muted-foreground hover:bg-sidebar-accent hover:text-foreground'
-                )}
-              >
-                <TrendingUp className="w-4 h-4 shrink-0" />
-                <span className="flex-1 text-left">Finans</span>
-                <ChevronDown className={cn('w-3.5 h-3.5 transition-transform', financeOpen && 'rotate-180')} />
-              </button>
-              {financeOpen && (
-                <div className="ml-3 mt-1 space-y-0.5 border-l border-sidebar-border pl-3">
-                  {financeItems.map((item) => {
-                    const Icon = item.icon
-                    const active = isActive(item.href)
-                    return (
-                      <Link
-                        key={item.href}
-                        href={item.href}
-                        onClick={onClose}
-                        className={cn(
-                          'flex items-center gap-2.5 px-2.5 py-1.5 rounded-md text-[13px] font-medium transition-colors',
-                          active
-                            ? 'bg-sidebar-primary/15 text-sidebar-primary'
-                            : 'text-muted-foreground hover:bg-sidebar-accent hover:text-foreground'
-                        )}
-                      >
-                        <Icon className="w-3.5 h-3.5 shrink-0" />
-                        {item.label}
-                      </Link>
-                    )
-                  })}
-                </div>
-              )}
-            </div>
+            <AccordionSection
+              icon={TrendingUp}
+              label="Finans"
+              items={financeItems}
+              isOpen={financeOpen}
+              onToggle={() => setFinanceOpen(!financeOpen)}
+              isActivePath={isFinancePath}
+              pathname={pathname}
+              onClose={onClose}
+            />
           )}
 
-          {/* Aktivite */}
-          <Link
-            href="/activity"
-            onClick={onClose}
-            className={cn(
-              'flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-colors',
-              isActive('/activity')
-                ? 'bg-sidebar-primary/15 text-sidebar-primary'
-                : 'text-muted-foreground hover:bg-sidebar-accent hover:text-foreground'
-            )}
-          >
-            <ClipboardList className="w-4 h-4 shrink-0" />
-            Aktivite
-          </Link>
+          {/* Aktivite — accordion */}
+          <AccordionSection
+            icon={ClipboardList}
+            label="Aktivite"
+            items={activityItems}
+            isOpen={activityOpen}
+            onToggle={() => setActivityOpen(!activityOpen)}
+            isActivePath={isActivityPath}
+            pathname={pathname}
+            onClose={onClose}
+          />
 
-          {/* Takvim */}
-          <Link
-            href="/calendar"
-            onClick={onClose}
-            className={cn(
-              'flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-colors',
-              isActive('/calendar')
-                ? 'bg-sidebar-primary/15 text-sidebar-primary'
-                : 'text-muted-foreground hover:bg-sidebar-accent hover:text-foreground'
-            )}
-          >
-            <CalendarDays className="w-4 h-4 shrink-0" />
-            Takvim
-          </Link>
+          {/* Takvim — accordion */}
+          <AccordionSection
+            icon={CalendarDays}
+            label="Takvim"
+            items={calendarItems}
+            isOpen={calendarOpen}
+            onToggle={() => setCalendarOpen(!calendarOpen)}
+            isActivePath={isCalendarPath}
+            pathname={pathname}
+            onClose={onClose}
+          />
 
           {/* Kullanıcılar — admin only */}
           {isAdmin && (
-            <Link
-              href="/users"
-              onClick={onClose}
-              className={cn(
-                'flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-colors',
-                isActive('/users')
-                  ? 'bg-sidebar-primary/15 text-sidebar-primary'
-                  : 'text-muted-foreground hover:bg-sidebar-accent hover:text-foreground'
-              )}
-            >
-              <Settings className="w-4 h-4 shrink-0" />
-              Kullanıcılar
-            </Link>
+            <NavLink href="/users" icon={Settings} label="Kullanıcılar" pathname={pathname} onClose={onClose} />
           )}
         </nav>
 
