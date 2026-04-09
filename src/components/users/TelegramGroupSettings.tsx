@@ -26,8 +26,10 @@ export function TelegramGroupSettings({ initialChatId }: TelegramGroupSettingsPr
   const [draft, setDraft] = useState('')
   const [saving, setSaving] = useState(false)
   const [testing, setTesting] = useState(false)
+  const [triggering, setTriggering] = useState(false)
 
   const isConnected = Boolean(chatId)
+  const isBusy = saving || testing || triggering
 
   const handleEdit = () => {
     setDraft(chatId)
@@ -72,6 +74,21 @@ export function TelegramGroupSettings({ initialChatId }: TelegramGroupSettingsPr
       toast.error(message)
     } finally {
       setTesting(false)
+    }
+  }
+
+  const handleTrigger = async () => {
+    setTriggering(true)
+    try {
+      const response = await fetch('/api/settings/telegram-trigger', { method: 'POST' })
+      const payload = await response.json().catch(() => ({}))
+      if (!response.ok) throw new Error(payload.error ?? 'Tetikleme başarısız')
+      toast.success(payload.message ?? 'Hatırlatma gönderildi!')
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Tetikleme başarısız'
+      toast.error(message)
+    } finally {
+      setTriggering(false)
     }
   }
 
@@ -156,14 +173,24 @@ export function TelegramGroupSettings({ initialChatId }: TelegramGroupSettingsPr
                 <Button
                   size="sm"
                   variant="outline"
+                  onClick={handleTrigger}
+                  disabled={isBusy}
+                >
+                  {triggering ? 'Kontrol ediliyor...' : 'Hatırlatma Gönder'}
+                </Button>
+              )}
+              {isConnected && (
+                <Button
+                  size="sm"
+                  variant="outline"
                   className="text-[#229ED9] hover:text-[#229ED9]"
                   onClick={handleTest}
-                  disabled={testing || saving}
+                  disabled={isBusy}
                 >
                   {testing ? 'Gönderiliyor...' : 'Test Et'}
                 </Button>
               )}
-              <Button size="sm" variant="outline" onClick={handleEdit} disabled={saving || testing}>
+              <Button size="sm" variant="outline" onClick={handleEdit} disabled={isBusy}>
                 {isConnected ? 'Düzenle' : 'Bağla'}
               </Button>
               {isConnected && (
@@ -172,7 +199,7 @@ export function TelegramGroupSettings({ initialChatId }: TelegramGroupSettingsPr
                   variant="outline"
                   className="text-destructive hover:text-destructive"
                   onClick={handleDisconnect}
-                  disabled={saving || testing}
+                  disabled={isBusy}
                 >
                   Bağlantıyı Kes
                 </Button>

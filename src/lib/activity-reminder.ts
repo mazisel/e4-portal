@@ -195,6 +195,28 @@ function ensureConfig() {
   )
 }
 
+export async function runManualReminderCheck(): Promise<{ ok: boolean; message: string }> {
+  const parts = getLocalDateTimeParts(new Date())
+  const todayKey = `${parts.year}-${parts.month}-${parts.day}`
+  const time = `${parts.hour}:${parts.minute}`
+
+  const missingUsers = await getMissingUsers(todayKey)
+
+  if (missingUsers.length === 0) {
+    return { ok: true, message: 'Tüm kullanıcılar bugün aktivite girmiş.' }
+  }
+
+  const lines = missingUsers.map(profile => `- ${getDisplayName(profile)}`)
+  const text = [
+    `Manuel kontrol (${time})`,
+    `${todayKey} tarihinde hala aktivite girmeyen kullanicilar:`,
+    ...lines,
+  ].join('\n')
+
+  await sendTelegramMessage(text)
+  return { ok: true, message: `${missingUsers.length} eksik kullanıcı bildirildi.` }
+}
+
 export function startActivityReminderScheduler() {
   if (process.env.NODE_ENV !== 'production') {
     return
