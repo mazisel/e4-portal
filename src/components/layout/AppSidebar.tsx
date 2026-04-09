@@ -6,89 +6,33 @@ import {
   LayoutDashboard, ArrowLeftRight, Tag, BarChart3,
   Users, Building2, SlidersHorizontal, Truck, X,
   Wallet, CreditCard, HandCoins, CalendarDays,
-  ClipboardList, Settings, LogOut,
+  ClipboardList, TrendingUp, LogOut, ChevronDown, Settings,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useAuth } from '@/contexts/AuthContext'
+import { useState } from 'react'
 
-interface NavItem {
+interface SubItem {
   href: string
   label: string
   icon: typeof LayoutDashboard
-  adminOnly?: boolean
-  financeOnly?: boolean
 }
 
-const mainNav: NavItem[] = [
-  { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard, financeOnly: true },
-  { href: '/transactions', label: 'İşlemler', icon: ArrowLeftRight, financeOnly: true },
-  { href: '/kasa', label: 'Kasa', icon: Wallet, financeOnly: true },
-  { href: '/debts', label: 'Borçlar', icon: CreditCard, financeOnly: true },
-  { href: '/advances', label: 'Avanslar', icon: HandCoins, financeOnly: true },
-  { href: '/categories', label: 'Kategoriler', icon: Tag, financeOnly: true },
-  { href: '/reports', label: 'Raporlar', icon: BarChart3, financeOnly: true },
+const financeItems: SubItem[] = [
+  { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
+  { href: '/transactions', label: 'İşlemler', icon: ArrowLeftRight },
+  { href: '/kasa', label: 'Kasa', icon: Wallet },
+  { href: '/debts', label: 'Borçlar', icon: CreditCard },
+  { href: '/advances', label: 'Avanslar', icon: HandCoins },
+  { href: '/categories', label: 'Kategoriler', icon: Tag },
+  { href: '/reports', label: 'Raporlar', icon: BarChart3 },
+  { href: '/staff', label: 'Personeller', icon: Users },
+  { href: '/customers', label: 'Müşteriler', icon: Building2 },
+  { href: '/suppliers', label: 'Tedarikçiler', icon: Truck },
+  { href: '/fixed', label: 'Sabitler', icon: SlidersHorizontal },
 ]
 
-const resourceNav: NavItem[] = [
-  { href: '/staff', label: 'Personeller', icon: Users, financeOnly: true },
-  { href: '/customers', label: 'Müşteriler', icon: Building2, financeOnly: true },
-  { href: '/suppliers', label: 'Tedarikçiler', icon: Truck, financeOnly: true },
-  { href: '/fixed', label: 'Sabitler', icon: SlidersHorizontal, financeOnly: true },
-]
-
-const toolsNav: NavItem[] = [
-  { href: '/calendar', label: 'Takvim', icon: CalendarDays },
-  { href: '/activity', label: 'Aktivite', icon: ClipboardList },
-]
-
-const adminNav: NavItem[] = [
-  { href: '/users', label: 'Kullanıcılar', icon: Settings, adminOnly: true },
-]
-
-function NavSection({ label, items, pathname, onClose, canFinance, isAdmin }: {
-  label: string
-  items: NavItem[]
-  pathname: string
-  onClose: () => void
-  canFinance: boolean
-  isAdmin: boolean
-}) {
-  const filtered = items.filter(item => {
-    if (item.adminOnly && !isAdmin) return false
-    if (item.financeOnly && !canFinance) return false
-    return true
-  })
-
-  if (filtered.length === 0) return null
-
-  return (
-    <div className="space-y-1">
-      <p className="px-3 pt-3 pb-1 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/60">
-        {label}
-      </p>
-      {filtered.map((item) => {
-        const Icon = item.icon
-        const isActive = pathname === item.href || pathname.startsWith(item.href + '/')
-        return (
-          <Link
-            key={item.href}
-            href={item.href}
-            onClick={onClose}
-            className={cn(
-              'flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-colors',
-              isActive
-                ? 'bg-sidebar-primary/15 text-sidebar-primary'
-                : 'text-muted-foreground hover:bg-sidebar-accent hover:text-foreground'
-            )}
-          >
-            <Icon className="w-4 h-4 shrink-0" />
-            {item.label}
-          </Link>
-        )
-      })}
-    </div>
-  )
-}
+const financePaths = new Set(financeItems.map(i => i.href))
 
 interface AppSidebarProps {
   open: boolean
@@ -100,6 +44,11 @@ export function AppSidebar({ open, onClose }: AppSidebarProps) {
   const { profile, signOut } = useAuth()
   const isAdmin = profile?.role === 'admin'
   const canFinance = profile?.can_access_finance ?? false
+
+  const isFinancePath = financePaths.has(pathname) || [...financePaths].some(p => pathname.startsWith(p + '/'))
+  const [financeOpen, setFinanceOpen] = useState(isFinancePath)
+
+  const isActive = (href: string) => pathname === href || pathname.startsWith(href + '/')
 
   return (
     <>
@@ -130,15 +79,97 @@ export function AppSidebar({ open, onClose }: AppSidebarProps) {
         </div>
 
         {/* Navigation */}
-        <nav className="flex-1 px-2 py-1 overflow-y-auto space-y-1">
+        <nav className="flex-1 px-2 py-3 overflow-y-auto space-y-1">
+
+          {/* Finans — accordion */}
           {canFinance && (
-            <NavSection label="Finans" items={mainNav} pathname={pathname} onClose={onClose} canFinance={canFinance} isAdmin={isAdmin} />
+            <div>
+              <button
+                onClick={() => setFinanceOpen(!financeOpen)}
+                className={cn(
+                  'flex w-full items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-colors',
+                  isFinancePath
+                    ? 'text-sidebar-primary'
+                    : 'text-muted-foreground hover:bg-sidebar-accent hover:text-foreground'
+                )}
+              >
+                <TrendingUp className="w-4 h-4 shrink-0" />
+                <span className="flex-1 text-left">Finans</span>
+                <ChevronDown className={cn('w-3.5 h-3.5 transition-transform', financeOpen && 'rotate-180')} />
+              </button>
+              {financeOpen && (
+                <div className="ml-3 mt-1 space-y-0.5 border-l border-sidebar-border pl-3">
+                  {financeItems.map((item) => {
+                    const Icon = item.icon
+                    const active = isActive(item.href)
+                    return (
+                      <Link
+                        key={item.href}
+                        href={item.href}
+                        onClick={onClose}
+                        className={cn(
+                          'flex items-center gap-2.5 px-2.5 py-1.5 rounded-md text-[13px] font-medium transition-colors',
+                          active
+                            ? 'bg-sidebar-primary/15 text-sidebar-primary'
+                            : 'text-muted-foreground hover:bg-sidebar-accent hover:text-foreground'
+                        )}
+                      >
+                        <Icon className="w-3.5 h-3.5 shrink-0" />
+                        {item.label}
+                      </Link>
+                    )
+                  })}
+                </div>
+              )}
+            </div>
           )}
-          {canFinance && (
-            <NavSection label="Kayıtlar" items={resourceNav} pathname={pathname} onClose={onClose} canFinance={canFinance} isAdmin={isAdmin} />
+
+          {/* Aktivite */}
+          <Link
+            href="/activity"
+            onClick={onClose}
+            className={cn(
+              'flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-colors',
+              isActive('/activity')
+                ? 'bg-sidebar-primary/15 text-sidebar-primary'
+                : 'text-muted-foreground hover:bg-sidebar-accent hover:text-foreground'
+            )}
+          >
+            <ClipboardList className="w-4 h-4 shrink-0" />
+            Aktivite
+          </Link>
+
+          {/* Takvim */}
+          <Link
+            href="/calendar"
+            onClick={onClose}
+            className={cn(
+              'flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-colors',
+              isActive('/calendar')
+                ? 'bg-sidebar-primary/15 text-sidebar-primary'
+                : 'text-muted-foreground hover:bg-sidebar-accent hover:text-foreground'
+            )}
+          >
+            <CalendarDays className="w-4 h-4 shrink-0" />
+            Takvim
+          </Link>
+
+          {/* Kullanıcılar — admin only */}
+          {isAdmin && (
+            <Link
+              href="/users"
+              onClick={onClose}
+              className={cn(
+                'flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-colors',
+                isActive('/users')
+                  ? 'bg-sidebar-primary/15 text-sidebar-primary'
+                  : 'text-muted-foreground hover:bg-sidebar-accent hover:text-foreground'
+              )}
+            >
+              <Settings className="w-4 h-4 shrink-0" />
+              Kullanıcılar
+            </Link>
           )}
-          <NavSection label="Araçlar" items={toolsNav} pathname={pathname} onClose={onClose} canFinance={canFinance} isAdmin={isAdmin} />
-          <NavSection label="Yönetim" items={adminNav} pathname={pathname} onClose={onClose} canFinance={canFinance} isAdmin={isAdmin} />
         </nav>
 
         {/* Footer */}
