@@ -183,7 +183,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         }
       }
 
-      router.push('/home')
+      router.push('/dashboard')
       return { error: null }
     } catch (authError) {
       console.error('Sign in failed', authError)

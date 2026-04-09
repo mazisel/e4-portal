@@ -38,7 +38,7 @@ export function FinanceSidebar({ open, onClose }: FinanceSidebarProps) {
       )}
       <aside
         className={cn(
-          'fixed inset-y-0 left-0 z-50 w-64 bg-card border-r flex flex-col transition-transform duration-200',
+          'fixed inset-y-0 left-0 z-50 w-64 bg-sidebar border-r border-sidebar-border flex flex-col transition-transform duration-200',
           'lg:translate-x-0 lg:static lg:z-auto',
           open ? 'translate-x-0' : '-translate-x-full'
         )}
@@ -72,10 +72,10 @@ export function FinanceSidebar({ open, onClose }: FinanceSidebarProps) {
                 href={item.href}
                 onClick={onClose}
                 className={cn(
-                  'flex items-center gap-3 px-3 py-2 rounded-md text-sm font-medium transition-colors',
+                  'flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-colors',
                   isActive
-                    ? 'bg-primary text-primary-foreground'
-                    : 'text-muted-foreground hover:bg-muted hover:text-foreground'
+                    ? 'bg-sidebar-primary/15 text-sidebar-primary'
+                    : 'text-muted-foreground hover:bg-sidebar-accent hover:text-foreground'
                 )}
               >
                 <Icon className="w-4 h-4 shrink-0" />
