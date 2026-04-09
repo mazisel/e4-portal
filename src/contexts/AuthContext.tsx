@@ -147,7 +147,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
           setError(AUTH_LOAD_ERROR)
           setProfile(null)
-          setLoading(false)
+        } finally {
+          if (active) {
+            setLoading(false)
+          }
         }
       }
     )
@@ -167,6 +170,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
       const signedInUser = data.user ?? data.session?.user
       if (signedInUser) {
+        setUser(signedInUser)
+        setSession(data.session)
+
         const nextProfile = await fetchProfile(
           signedInUser.id,
           signedInUser.email,
@@ -183,6 +189,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         }
       }
 
+      setLoading(false)
       router.push('/dashboard')
       return { error: null }
     } catch (authError) {
