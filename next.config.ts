@@ -9,14 +9,6 @@ const nextConfig: NextConfig = {
   typescript: {
     ignoreBuildErrors: true,
   },
-  async rewrites() {
-    return [
-      {
-        source: '/storage/:path*',
-        destination: 'https://xzwgnmzuyaukseypwdgh.supabase.co/storage/:path*',
-      },
-    ]
-  },
 };
 
 export default nextConfig;

@@ -3,6 +3,13 @@ import { NextResponse, type NextRequest } from 'next/server'
 import { normalizeProfileRecord } from '@/lib/profile-utils'
 
 export async function proxy(request: NextRequest) {
+  // /storage için proxy (rewrite) ve public geçiş izni
+  if (request.nextUrl.pathname.startsWith('/storage')) {
+    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL ?? 'https://xzwgnmzuyaukseypwdgh.supabase.co'
+    const newUrl = new URL(request.nextUrl.pathname + request.nextUrl.search, supabaseUrl)
+    return NextResponse.rewrite(newUrl)
+  }
+
   let supabaseResponse = NextResponse.next({ request })
 
   const supabase = createServerClient(
