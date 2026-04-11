@@ -43,6 +43,7 @@ export async function POST(request: NextRequest) {
   const canAccessFinance = payload.canAccessFinance
   const isActive = payload.isActive
   const role = payload.role
+  const phone = typeof payload.phone === 'string' ? payload.phone.trim() : null
 
   if (!email || password.length < 6 || typeof canAccessFinance !== 'boolean' || typeof isActive !== 'boolean' || !isValidRole(role)) {
     return NextResponse.json({ error: 'Gecersiz istek' }, { status: 400 })
@@ -70,6 +71,7 @@ export async function POST(request: NextRequest) {
         role,
         is_active: isActive,
         can_access_finance: canAccessFinance,
+        phone,
       },
       { onConflict: 'id' }
     )
@@ -77,7 +79,11 @@ export async function POST(request: NextRequest) {
     .single()
 
   if (profileError) {
-    return NextResponse.json({ error: profileError.message }, { status: 500 })
+    console.error('Profile Upsert Error:', profileError)
+    return NextResponse.json({ 
+      error: profileError.message,
+      details: 'Lütfen Supabase üzerinden "phone" sütununu eklediğinizden emin olun.' 
+    }, { status: 500 })
   }
 
   return NextResponse.json({
@@ -98,6 +104,7 @@ export async function PATCH(request: NextRequest) {
   const canAccessFinance = payload.canAccessFinance
   const isActive = payload.isActive
   const role = payload.role
+  const phone = typeof payload.phone === 'string' ? payload.phone.trim() : null
 
   if (!userId || typeof canAccessFinance !== 'boolean' || typeof isActive !== 'boolean' || !isValidRole(role)) {
     return NextResponse.json({ error: 'Gecersiz istek' }, { status: 400 })
@@ -129,13 +136,18 @@ export async function PATCH(request: NextRequest) {
       role,
       is_active: isActive,
       can_access_finance: canAccessFinance,
+      phone,
     })
     .eq('id', userId)
     .select('*')
     .single()
 
   if (updateError) {
-    return NextResponse.json({ error: updateError.message }, { status: 500 })
+    console.error('Profile Update Error:', updateError)
+    return NextResponse.json({ 
+      error: updateError.message,
+      details: 'Lütfen Supabase üzerinden "phone" sütununu eklediğinizden emin olun.' 
+    }, { status: 500 })
   }
 
   return NextResponse.json({

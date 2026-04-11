@@ -1,8 +1,9 @@
 import { createAdminClient } from '@/lib/supabase-admin'
 import { request as httpsRequest } from 'node:https'
+import { sendWhatsappMessage } from '@/lib/whatsapp'
 
 const REMINDER_TIME_ZONE = 'Europe/Istanbul'
-const REMINDER_SLOTS = new Set(['22:00', '23:00', '23:15', '23:30', '23:45'])
+const REMINDER_SLOTS = new Set(['22:00', '23:00', '23:15', '23:30', '23:45', '23:59'])
 const TICK_INTERVAL_MS = 10_000
 const DEFAULT_TELEGRAM_CHAT_ID = '-1003743909516'
 
@@ -11,6 +12,7 @@ interface ProfileRow {
   full_name: string | null
   email: string | null
   is_active?: boolean | null
+  phone?: string | null
 }
 
 interface ActivityLogRow {
@@ -143,7 +145,7 @@ async function getMissingUsers(todayKey: string) {
   const [{ data: profiles, error: profilesError }, { data: logs, error: logsError }] = await Promise.all([
     supabase
       .from('profiles')
-      .select('*')
+      .select('id, full_name, email, is_active, phone')
       .order('full_name', { ascending: true }),
     supabase
       .from('activity_logs')
@@ -185,6 +187,24 @@ async function runReminderCheck(slotKey: string) {
 
   await sendTelegramMessage(message)
   console.info(`[activity-reminder] ${slotTime} mesaj gonderildi (${missingUsers.length} kisi)`)
+
+  // 23:59 ise ayrica WhatsApp gonder
+  if (slotTime === '23:59') {
+    console.info('[activity-reminder] 23:59 WhatsApp bildirimleri baslatiliyor...')
+    for (const user of missingUsers) {
+      if (user.phone) {
+        try {
+          await sendWhatsappMessage({
+            phone: user.phone,
+            message: 'Aktiviteniz eksik lütfen tamamlayın.'
+          })
+          console.info(`[activity-reminder] WhatsApp gonderildi: ${user.phone}`)
+        } catch (error) {
+          console.error(`[activity-reminder] WhatsApp hatasi (${user.phone}):`, error)
+        }
+      }
+    }
+  }
 }
 
 function ensureConfig() {

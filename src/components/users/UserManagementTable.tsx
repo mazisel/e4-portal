@@ -19,6 +19,7 @@ export interface ManagedUser {
   can_access_finance: boolean
   role: UserRole
   is_active: boolean
+  phone: string | null
   created_at: string
 }
 
@@ -34,6 +35,7 @@ interface UserFormValues {
   canAccessFinance: boolean
   role: UserRole
   isActive: boolean
+  phone: string
 }
 
 interface UserDialogProps {
@@ -75,6 +77,7 @@ function UserDialog({ currentUserId, mode, onClose, onSubmit, pending, user }: U
   const [role, setRole] = useState<UserRole>(user?.role ?? 'user')
   const [isActive, setIsActive] = useState(user?.is_active ?? true)
   const [canAccessFinance, setCanAccessFinance] = useState(user?.can_access_finance ?? false)
+  const [phone, setPhone] = useState(user?.phone ?? '')
 
   const isCurrentUser = user?.id === currentUserId
 
@@ -88,6 +91,7 @@ function UserDialog({ currentUserId, mode, onClose, onSubmit, pending, user }: U
       role,
       isActive,
       canAccessFinance,
+      phone,
     })
   }
 
@@ -138,6 +142,20 @@ function UserDialog({ currentUserId, mode, onClose, onSubmit, pending, user }: U
               />
             </div>
           )}
+ 
+          <div className="grid gap-2">
+            <Label htmlFor="phone">Telefon Numarası</Label>
+            <Input
+              id="phone"
+              type="tel"
+              value={phone}
+              onChange={event => setPhone(event.target.value)}
+              placeholder="05XX XXX XX XX"
+            />
+            <p className="text-[10px] text-muted-foreground">
+              WhatsApp bildirimleri için TR formatında (örn: 05551234567) giriniz.
+            </p>
+          </div>
 
           <div className="grid gap-4 md:grid-cols-3">
             <div className="grid gap-2">
@@ -233,6 +251,7 @@ export function UserManagementTable({ initialUsers, currentUserId }: UserManagem
           role: values.role,
           isActive: values.isActive,
           canAccessFinance: values.canAccessFinance,
+          phone: values.phone,
         }),
       })
 
@@ -270,6 +289,7 @@ export function UserManagementTable({ initialUsers, currentUserId }: UserManagem
           role: values.role,
           isActive: values.isActive,
           canAccessFinance: values.canAccessFinance,
+          phone: values.phone,
         }),
       })
 
@@ -355,6 +375,7 @@ export function UserManagementTable({ initialUsers, currentUserId }: UserManagem
               <TableRow>
                 <TableHead>Kullanıcı</TableHead>
                 <TableHead>E-posta</TableHead>
+                <TableHead>Telefon</TableHead>
                 <TableHead>Rol</TableHead>
                 <TableHead>Durum</TableHead>
                 <TableHead>Finans</TableHead>
@@ -384,6 +405,9 @@ export function UserManagementTable({ initialUsers, currentUserId }: UserManagem
                       </TableCell>
                       <TableCell className="whitespace-normal text-muted-foreground">
                         {user.email ?? '-'}
+                      </TableCell>
+                      <TableCell className="whitespace-nowrap text-muted-foreground">
+                        {user.phone ?? '-'}
                       </TableCell>
                       <TableCell>
                         <Badge variant={user.role === 'admin' ? 'default' : 'outline'}>

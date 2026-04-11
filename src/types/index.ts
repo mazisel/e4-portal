@@ -9,6 +9,7 @@ export interface UserProfile {
   can_access_finance: boolean
   role: UserRole
   is_active: boolean
+  phone?: string | null
 }
 
 export interface Customer {

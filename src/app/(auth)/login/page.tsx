@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useRef } from 'react'
+import Image from 'next/image'
 import { useAuth } from '@/contexts/AuthContext'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -12,112 +13,116 @@ import { Eye, EyeOff, LogIn, Loader2 } from 'lucide-react'
 type OwlState = 'idle' | 'watching' | 'hiding' | 'peeking' | 'success' | 'error'
 
 function OwlMascot({ state, lookAt }: { state: OwlState; lookAt: number }) {
-  // lookAt: -1 (left) to 1 (right), controls pupil position
-  const pupilX = state === 'hiding' ? 0 : lookAt * 3
-  const pupilY = state === 'watching' ? 2 : 0
+  const px = state === 'hiding' || state === 'peeking' ? 0 : lookAt * 5
+  const py = state === 'watching' ? 3 : 0
+  const pr = state === 'peeking' ? 4 : 8
+
+  // Göz kapanma animasyonu
+  const eyeScaleY =
+    state === 'hiding'  ? 0.05 :
+    state === 'peeking' ? 0.80 :
+    state === 'success' ? 0    : 1
+
+  // Kolların gelip gözleri kapadığı animasyon
+  const armsVisible = state === 'hiding' || state === 'peeking'
+  const leftTX  = armsVisible ? 0 : -130
+  const rightTX = armsVisible ? 0 :  130
+  const armTY   = state === 'peeking' ? 28 : 0
+
+  const tr = (tx: number) =>
+    `translateX(${tx}px) translateY(${armTY}px)`
 
   return (
-    <div className="flex justify-center mb-2">
-      <svg width="120" height="100" viewBox="0 0 120 100" className="select-none">
-        {/* Body */}
-        <ellipse cx="60" cy="70" rx="35" ry="28" className="fill-sidebar-primary/20" />
+    <div className="flex justify-center mb-4">
+      {/* 140x140 boyutunda ortalanmış baykuş SVG'si */}
+      <svg width="140" height="140" viewBox="0 0 180 180" className="select-none" style={{ overflow: 'hidden', borderRadius: '16px' }}>
 
-        {/* Ears/horns */}
-        <path d="M32 45 L25 25 L42 40 Z" className="fill-sidebar-primary/30" />
-        <path d="M88 45 L95 25 L78 40 Z" className="fill-sidebar-primary/30" />
+        {/* --- Arka Kanatlar (Dinlenme Hali) --- */}
+        <path d="M 35 80 C 15 90 15 140 45 150 C 35 130 35 100 40 80 Z" className="fill-slate-800" />
+        <path d="M 145 80 C 165 90 165 140 135 150 C 145 130 145 100 140 80 Z" className="fill-slate-800" />
 
-        {/* Head */}
-        <ellipse cx="60" cy="48" rx="30" ry="24" className="fill-sidebar-primary/25" />
+        {/* --- Kulaklar --- */}
+        <path d="M40 70 L25 15 L75 50 Z" className="fill-slate-700" strokeLinejoin="round" />
+        <path d="M140 70 L155 15 L105 50 Z" className="fill-slate-700" strokeLinejoin="round" />
 
-        {/* Eye whites */}
-        <ellipse cx="46" cy="46" rx="12" ry="11" className="fill-foreground/90">
-          <animate
-            attributeName="ry"
-            values={state === 'hiding' ? '11;1' : state === 'peeking' ? '1;5' : '11'}
-            dur={state === 'hiding' || state === 'peeking' ? '0.3s' : '0.01s'}
-            fill="freeze"
-          />
-        </ellipse>
-        <ellipse cx="74" cy="46" rx="12" ry="11" className="fill-foreground/90">
-          <animate
-            attributeName="ry"
-            values={state === 'hiding' ? '11;1' : state === 'peeking' ? '1;5' : '11'}
-            dur={state === 'hiding' || state === 'peeking' ? '0.3s' : '0.01s'}
-            fill="freeze"
-          />
-        </ellipse>
+        {/* --- Gövde (Ana Kapsül) --- */}
+        <rect x="35" y="40" width="110" height="130" rx="55" className="fill-slate-700" />
+        
+        {/* --- Göbek --- */}
+        <path d="M 50 110 Q 90 80 130 110 L 130 140 Q 130 160 90 160 Q 50 160 50 140 Z" className="fill-slate-600" />
 
-        {/* Pupils */}
-        {state !== 'hiding' && (
-          <>
-            <circle cx={46 + pupilX} cy={46 + pupilY} r={state === 'peeking' ? 2.5 : 5} className="fill-background">
-              <animate
-                attributeName="r"
-                values={state === 'error' ? '5;7;5' : state === 'success' ? '5;3;5' : String(state === 'peeking' ? 2.5 : 5)}
-                dur={state === 'error' || state === 'success' ? '0.3s' : '0.01s'}
-                fill="freeze"
-              />
-            </circle>
-            <circle cx={74 + pupilX} cy={46 + pupilY} r={state === 'peeking' ? 2.5 : 5} className="fill-background">
-              <animate
-                attributeName="r"
-                values={state === 'error' ? '5;7;5' : state === 'success' ? '5;3;5' : String(state === 'peeking' ? 2.5 : 5)}
-                dur={state === 'error' || state === 'success' ? '0.3s' : '0.01s'}
-                fill="freeze"
-              />
-            </circle>
-            {/* Eye shine */}
-            <circle cx={44 + pupilX} cy={44 + pupilY} r={state === 'peeking' ? 0.8 : 1.5} className="fill-foreground/80" />
-            <circle cx={72 + pupilX} cy={44 + pupilY} r={state === 'peeking' ? 0.8 : 1.5} className="fill-foreground/80" />
-          </>
-        )}
+        {/* --- Sol Göz --- */}
+        <g style={{
+          transformBox: 'fill-box', transformOrigin: 'center',
+          transform: `scaleY(${eyeScaleY})`,
+          transition: 'transform 0.3s ease-out',
+        }}>
+          {/* Göz Akı */}
+          <circle cx="68" cy="75" r="22" className="fill-white" />
+          {/* Göz Bebeği (Hareketli) */}
+          <g style={{ transform: `translate(${px}px, ${py}px)`, transition: 'transform 0.1s ease-out' }}>
+            <circle cx="68" cy="75" r="11" className="fill-slate-900" />
+            <circle cx={68 + px ? 65 : 65} cy={px ? 72 : 72} r="3" className="fill-white" />
+          </g>
+        </g>
 
-        {/* Hands covering eyes when hiding */}
-        {state === 'hiding' && (
-          <>
-            <ellipse cx="46" cy="46" rx="14" ry="10" className="fill-sidebar-primary/30">
-              <animate attributeName="cy" values="65;46" dur="0.3s" fill="freeze" />
-            </ellipse>
-            <ellipse cx="74" cy="46" rx="14" ry="10" className="fill-sidebar-primary/30">
-              <animate attributeName="cy" values="65;46" dur="0.3s" fill="freeze" />
-            </ellipse>
-          </>
-        )}
+        {/* --- Sağ Göz --- */}
+        <g style={{
+          transformBox: 'fill-box', transformOrigin: 'center',
+          transform: `scaleY(${eyeScaleY})`,
+          transition: 'transform 0.3s ease-out',
+        }}>
+          {/* Göz Akı */}
+          <circle cx="112" cy="75" r="22" className="fill-white" />
+          {/* Göz Bebeği (Hareketli) */}
+          <g style={{ transform: `translate(${px}px, ${py}px)`, transition: 'transform 0.1s ease-out' }}>
+            <circle cx="112" cy="75" r="11" className="fill-slate-900" />
+            <circle cx={px ? 109 : 109} cy={px ? 72 : 72} r="3" className="fill-white" />
+          </g>
+        </g>
 
-        {/* Beak */}
-        <path d="M56 54 L60 60 L64 54 Z" className="fill-amber-500/80" />
-
-        {/* Blush */}
-        <ellipse cx="36" cy="55" rx="5" ry="3" className="fill-pink-400/20" />
-        <ellipse cx="84" cy="55" rx="5" ry="3" className="fill-pink-400/20" />
-
-        {/* Feet */}
-        <ellipse cx="48" cy="95" rx="8" ry="3" className="fill-amber-500/40" />
-        <ellipse cx="72" cy="95" rx="8" ry="3" className="fill-amber-500/40" />
-
-        {/* Error state: eyebrows angry */}
-        {state === 'error' && (
-          <>
-            <line x1="36" y1="34" x2="52" y2="37" className="stroke-destructive" strokeWidth="2" strokeLinecap="round">
-              <animate attributeName="y1" values="37;34" dur="0.2s" fill="freeze" />
-            </line>
-            <line x1="84" y1="34" x2="68" y2="37" className="stroke-destructive" strokeWidth="2" strokeLinecap="round">
-              <animate attributeName="y1" values="37;34" dur="0.2s" fill="freeze" />
-            </line>
-          </>
-        )}
-
-        {/* Success state: happy eyebrows */}
+        {/* --- Başarı / Hata Göz İfadeleri --- */}
         {state === 'success' && (
           <>
-            <path d="M36 36 Q44 32 52 36" className="stroke-emerald-400 fill-none" strokeWidth="2" strokeLinecap="round">
-              <animate attributeName="d" values="M36 38 Q44 38 52 38;M36 36 Q44 32 52 36" dur="0.3s" fill="freeze" />
-            </path>
-            <path d="M68 36 Q76 32 84 36" className="stroke-emerald-400 fill-none" strokeWidth="2" strokeLinecap="round">
-              <animate attributeName="d" values="M68 38 Q76 38 84 38;M68 36 Q76 32 84 36" dur="0.3s" fill="freeze" />
-            </path>
+            <path d="M 50 75 Q 68 60 86 75" className="stroke-emerald-400 fill-none" strokeWidth="4" strokeLinecap="round" />
+            <path d="M 94 75 Q 112 60 130 75" className="stroke-emerald-400 fill-none" strokeWidth="4" strokeLinecap="round" />
           </>
         )}
+
+        {state === 'error' && (
+          <>
+            <path d="M 56 65 L 80 85 M 80 65 L 56 85" className="stroke-rose-500 fill-none" strokeWidth="4" strokeLinecap="round" />
+            <path d="M 100 65 L 124 85 M 124 65 L 100 85" className="stroke-rose-500 fill-none" strokeWidth="4" strokeLinecap="round" />
+          </>
+        )}
+
+        {/* --- Gaga --- */}
+        <path d="M 83 91 L 97 91 L 90 104 Z" className="fill-amber-500" stroke="#f59e0b" strokeWidth="2" strokeLinejoin="round" />
+
+        {/* --- Yanak Allıkları --- */}
+        <ellipse cx="45" cy="90" rx="8" ry="4" className="fill-rose-400/30" />
+        <ellipse cx="135" cy="90" rx="8" ry="4" className="fill-rose-400/30" />
+
+        {/* --- Sol Kol (Göz Kapatan Kol) --- */}
+        <g style={{ transform: tr(leftTX), transition: 'transform 0.38s cubic-bezier(0.34,1.56,0.64,1)' }}>
+           {/* Kol gövdesi */}
+           <ellipse cx="68" cy="75" rx="30" ry="26" className="fill-slate-600" />
+           {/* Parmak / Tüy detayları */}
+           <circle cx="88" cy="65" r="8" className="fill-slate-500" />
+           <circle cx="95" cy="75" r="8" className="fill-slate-500" />
+           <circle cx="88" cy="85" r="8" className="fill-slate-500" />
+        </g>
+
+        {/* --- Sağ Kol (Göz Kapatan Kol) --- */}
+        <g style={{ transform: tr(rightTX), transition: 'transform 0.38s cubic-bezier(0.34,1.56,0.64,1)' }}>
+           {/* Kol gövdesi */}
+           <ellipse cx="112" cy="75" rx="30" ry="26" className="fill-slate-600" />
+           {/* Parmak / Tüy detayları */}
+           <circle cx="92" cy="65" r="8" className="fill-slate-500" />
+           <circle cx="85" cy="75" r="8" className="fill-slate-500" />
+           <circle cx="92" cy="85" r="8" className="fill-slate-500" />
+        </g>
+
       </svg>
     </div>
   )
@@ -171,9 +176,7 @@ export default function LoginPage() {
         <div className="relative z-10 flex flex-col justify-between p-12 w-full">
           <div>
             <div className="flex items-center gap-3">
-              <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-sidebar-primary/20">
-                <span className="text-lg font-bold text-sidebar-primary">e4</span>
-              </div>
+              <Image src="/e4_labs_logo.png" alt="e4 Labs Logo" width={40} height={40} className="rounded-xl object-contain" />
               <span className="text-lg font-semibold text-foreground">e4 Portal</span>
             </div>
           </div>
@@ -202,10 +205,8 @@ export default function LoginPage() {
       <div className="flex flex-1 items-center justify-center px-6 py-12">
         <div className="w-full max-w-sm space-y-6">
           {/* Mobile logo */}
-          <div className="lg:hidden text-center space-y-2">
-            <div className="inline-flex h-12 w-12 items-center justify-center rounded-xl bg-sidebar-primary/20">
-              <span className="text-xl font-bold text-sidebar-primary">e4</span>
-            </div>
+          <div className="lg:hidden flex flex-col items-center justify-center space-y-3">
+            <Image src="/e4_labs_logo.png" alt="e4 Labs Logo" width={56} height={56} className="rounded-xl object-contain drop-shadow" />
             <h2 className="text-lg font-semibold">e4 Portal</h2>
           </div>
 
@@ -251,6 +252,7 @@ export default function LoginPage() {
                 />
                 <button
                   type="button"
+                  onMouseDown={(e) => e.preventDefault()}
                   onClick={() => setShowPassword(!showPassword)}
                   className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
                   tabIndex={-1}

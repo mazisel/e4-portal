@@ -1,6 +1,7 @@
 'use client'
 
 import Link from 'next/link'
+import Image from 'next/image'
 import { usePathname } from 'next/navigation'
 import {
   LayoutDashboard, ArrowLeftRight, Tag, BarChart3,
@@ -140,9 +141,7 @@ export function AppSidebar({ open, onClose }: AppSidebarProps) {
         {/* Header */}
         <div className="flex items-center justify-between h-14 px-4 border-b border-sidebar-border">
           <div className="flex items-center gap-2.5">
-            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-sidebar-primary/20">
-              <span className="text-sm font-bold text-sidebar-primary">e4</span>
-            </div>
+            <Image src="/e4_labs_logo.png" alt="e4 Labs Logo" width={32} height={32} className="rounded-lg object-contain" />
             <div>
               <p className="text-sm font-semibold text-sidebar-foreground">e4 Portal</p>
               <p className="text-[10px] text-muted-foreground">v1.0</p>

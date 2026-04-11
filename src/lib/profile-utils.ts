@@ -7,6 +7,7 @@ type ProfileRecord = Partial<UserProfile> & {
   can_access_finance?: boolean | null
   role?: string | null
   is_active?: boolean | null
+  phone?: string | null
 }
 
 export function normalizeUserRole(role: string | null | undefined, canAccessFinance = false): UserRole {
@@ -26,6 +27,7 @@ export function normalizeProfileRecord(record: ProfileRecord | null | undefined)
     can_access_finance: canAccessFinance,
     role: normalizeUserRole(record.role, canAccessFinance),
     is_active: record.is_active ?? true,
+    phone: record.phone ?? null,
   }
 }
 
