@@ -6,6 +6,7 @@ const REMINDER_TIME_ZONE = 'Europe/Istanbul'
 const REMINDER_SLOTS = new Set(['22:00', '23:00', '23:15', '23:30', '23:45', '23:59'])
 const TICK_INTERVAL_MS = 10_000
 const DEFAULT_TELEGRAM_CHAT_ID = '-1003743909516'
+const DEFAULT_ACTIVITY_TEST_LINK = 'https://dash.e4labs.com.tr/activity'
 
 interface ProfileRow {
   id: string
@@ -194,9 +195,10 @@ async function runReminderCheck(slotKey: string) {
     for (const user of missingUsers) {
       if (user.phone) {
         try {
+          const testLink = process.env.ACTIVITY_WHATSAPP_TEST_LINK?.trim() || DEFAULT_ACTIVITY_TEST_LINK
           await sendWhatsappMessage({
             phone: user.phone,
-            message: 'Aktiviteniz eksik lütfen tamamlayın.'
+            message: `Aktiviteniz eksik, lütfen tamamlayın.\nTest bağlantısı: ${testLink}`
           })
           console.info(`[activity-reminder] WhatsApp gonderildi: ${user.phone}`)
         } catch (error) {
