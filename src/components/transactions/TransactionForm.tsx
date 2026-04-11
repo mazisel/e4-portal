@@ -40,6 +40,7 @@ interface TransactionFormProps {
 }
 
 const today = () => new Date().toISOString().split('T')[0]
+const DEFAULT_RECEIPT_PATH = 'storage/v1/object/public/receipts/'
 
 async function uploadReceipt(file: File, userId: string): Promise<string | null> {
   const supabase = createClient()
@@ -59,6 +60,26 @@ async function sendWhatsapp(phone: string, message: string, variables?: Record<s
   })
   const data = await res.json()
   if (!res.ok) throw new Error(data.error || 'WhatsApp mesajı gönderilemedi')
+}
+
+function toTwilioStoragePath(receiptUrl: string | null): string {
+  if (!receiptUrl) return DEFAULT_RECEIPT_PATH
+
+  const stripLeadingSlashes = (value: string) => value.replace(/^\/+/, '')
+
+  try {
+    const parsedPath = stripLeadingSlashes(new URL(receiptUrl).pathname)
+    if (!parsedPath) return DEFAULT_RECEIPT_PATH
+
+    const storageStart = parsedPath.indexOf('storage/')
+    return storageStart >= 0 ? parsedPath.slice(storageStart) : parsedPath
+  } catch {
+    const normalized = stripLeadingSlashes(receiptUrl)
+    if (!normalized) return DEFAULT_RECEIPT_PATH
+
+    const storageStart = normalized.indexOf('storage/')
+    return storageStart >= 0 ? normalized.slice(storageStart) : normalized
+  }
 }
 
 export function TransactionForm({ open, onClose, onSave, initial }: TransactionFormProps) {
@@ -172,10 +193,9 @@ export function TransactionForm({ open, onClose, onSave, initial }: TransactionF
       // Sizin sağladığınız tam şablon metni (Fallback olarak)
       const whatsappText = `Sayın ${selectedCustomer.name} faturanız oluşturulmuştur. Teşekkür ederiz.`
       
-      // Şablon Seçenek 1: Twilio tarafında URL "https://xzwgnmzuyaukseypwdgh.supabase.co/{{1}}" olacak
-      // Biz buradan sadece "storage/v1/..." kısmını yollayacağız:
-      const supabaseBase = 'https://xzwgnmzuyaukseypwdgh.supabase.co/'
-      const receiptPath = receiptUrl ? receiptUrl.replace(supabaseBase, '') : 'storage/v1/object/public/receipts/'
+      // Twilio şablonunda domain sabit (örn: https://e4labs.com.tr/{{1}}).
+      // Bu yüzden her durumda sadece "storage/v1/..." yolunu gönderiyoruz.
+      const receiptPath = toTwilioStoragePath(receiptUrl)
 
       try {
         await sendWhatsapp(selectedCustomer.phone, whatsappText, {
