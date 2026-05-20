@@ -153,7 +153,7 @@ function UserDialog({ currentUserId, mode, onClose, onSubmit, pending, user }: U
               placeholder="05XX XXX XX XX"
             />
             <p className="text-[10px] text-muted-foreground">
-              WhatsApp bildirimleri için TR formatında (örn: 05551234567) giriniz.
+              SMS bildirimleri için TR formatında (örn: 05551234567) giriniz.
             </p>
           </div>
 

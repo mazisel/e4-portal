@@ -2,7 +2,7 @@ import { createClient } from '@/lib/supabase-server'
 import { normalizeProfileRecord } from '@/lib/profile-utils'
 import { UserManagementTable, type ManagedUser } from '@/components/users/UserManagementTable'
 import { TelegramGroupSettings } from '@/components/users/TelegramGroupSettings'
-import { WhatsappTestCard } from '@/components/users/WhatsappTestCard'
+import { SmsTestCard } from '@/components/users/SmsTestCard'
 import { Card, CardContent } from '@/components/ui/card'
 import { ShieldAlert } from 'lucide-react'
 import Link from 'next/link'
@@ -92,7 +92,7 @@ export default async function UsersPage() {
       <UserManagementTable initialUsers={users} currentUserId={currentUserId} />
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         <TelegramGroupSettings initialChatId={telegramGroupChatId} />
-        <WhatsappTestCard />
+        <SmsTestCard />
       </div>
     </div>
   )

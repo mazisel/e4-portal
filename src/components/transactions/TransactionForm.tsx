@@ -25,7 +25,7 @@ import {
   DialogTitle,
   DialogFooter,
 } from '@/components/ui/dialog'
-import { Paperclip, MessageCircle, X, FileText, ChevronDown, ChevronUp } from 'lucide-react'
+import { Paperclip, MessageSquare, X, FileText, ChevronDown, ChevronUp } from 'lucide-react'
 import { toast } from 'sonner'
 import { useTransactionHistory } from '@/hooks/useTransactionHistory'
 import { TransactionHistoryPanel, computeDiff } from './TransactionHistoryPanel'
@@ -40,7 +40,6 @@ interface TransactionFormProps {
 }
 
 const today = () => new Date().toISOString().split('T')[0]
-const DEFAULT_RECEIPT_PATH = 'storage/v1/object/public/receipts/'
 
 async function uploadReceipt(file: File, userId: string): Promise<string | null> {
   const supabase = createClient()
@@ -52,34 +51,14 @@ async function uploadReceipt(file: File, userId: string): Promise<string | null>
   return data.publicUrl
 }
 
-async function sendWhatsapp(phone: string, message: string, variables?: Record<string, string>) {
-  const res = await fetch('/api/whatsapp', {
+async function sendSms(phone: string, message: string) {
+  const res = await fetch('/api/sms', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ phone, message, variables }),
+    body: JSON.stringify({ phone, message }),
   })
   const data = await res.json()
-  if (!res.ok) throw new Error(data.error || 'WhatsApp mesajı gönderilemedi')
-}
-
-function toTwilioStoragePath(receiptUrl: string | null): string {
-  if (!receiptUrl) return DEFAULT_RECEIPT_PATH
-
-  const stripLeadingSlashes = (value: string) => value.replace(/^\/+/, '')
-
-  try {
-    const parsedPath = stripLeadingSlashes(new URL(receiptUrl).pathname)
-    if (!parsedPath) return DEFAULT_RECEIPT_PATH
-
-    const storageStart = parsedPath.indexOf('storage/')
-    return storageStart >= 0 ? parsedPath.slice(storageStart) : parsedPath
-  } catch {
-    const normalized = stripLeadingSlashes(receiptUrl)
-    if (!normalized) return DEFAULT_RECEIPT_PATH
-
-    const storageStart = normalized.indexOf('storage/')
-    return storageStart >= 0 ? normalized.slice(storageStart) : normalized
-  }
+  if (!res.ok) throw new Error(data.error || 'SMS gönderilemedi')
 }
 
 export function TransactionForm({ open, onClose, onSave, initial }: TransactionFormProps) {
@@ -94,7 +73,7 @@ export function TransactionForm({ open, onClose, onSave, initial }: TransactionF
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('cash')
   const [notes, setNotes] = useState('')
   const [receiptFile, setReceiptFile] = useState<File | null>(null)
-  const [sendWhatsappChecked, setSendWhatsappChecked] = useState(false)
+  const [sendSmsChecked, setSendSmsChecked] = useState(false)
   const [loading, setLoading] = useState(false)
   const [historyOpen, setHistoryOpen] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
@@ -111,7 +90,7 @@ export function TransactionForm({ open, onClose, onSave, initial }: TransactionF
   const supplierMap = useMemo(() => Object.fromEntries(suppliers.map((s) => [s.id, s.name])), [suppliers])
 
   const selectedCustomer = customers.find((c) => c.id === customerId)
-  const canSendWhatsapp = type === 'income' && !!selectedCustomer?.phone
+  const canSendSms = type === 'income' && !!selectedCustomer?.phone
 
   useEffect(() => {
     if (initial) {
@@ -126,7 +105,7 @@ export function TransactionForm({ open, onClose, onSave, initial }: TransactionF
       setPaymentMethod(initial.payment_method)
       setNotes(initial.notes || '')
       setReceiptFile(null)
-      setSendWhatsappChecked(false)
+      setSendSmsChecked(false)
     } else {
       setType('expense')
       setCategoryId('')
@@ -139,7 +118,7 @@ export function TransactionForm({ open, onClose, onSave, initial }: TransactionF
       setPaymentMethod('cash')
       setNotes('')
       setReceiptFile(null)
-      setSendWhatsappChecked(false)
+      setSendSmsChecked(false)
     }
   }, [initial, open])
 
@@ -149,14 +128,14 @@ export function TransactionForm({ open, onClose, onSave, initial }: TransactionF
       setStaffId('')
       setCustomerId('')
       setSupplierId('')
-      setSendWhatsappChecked(false)
+      setSendSmsChecked(false)
     }
   }, [type])
 
-  // WhatsApp seçeneği kapansın müşteri değişince telefonu yoksa
+  // SMS seçeneği kapansın müşteri değişince telefonu yoksa
   useEffect(() => {
-    if (!canSendWhatsapp) setSendWhatsappChecked(false)
-  }, [canSendWhatsapp])
+    if (!canSendSms) setSendSmsChecked(false)
+  }, [canSendSms])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -188,23 +167,13 @@ export function TransactionForm({ open, onClose, onSave, initial }: TransactionF
       notes: notes.trim() || null,
     })
 
-    // 3. WhatsApp gönder
-    if (result.ok && sendWhatsappChecked && selectedCustomer?.phone) {
-      // Sizin sağladığınız tam şablon metni (Fallback olarak)
-      const whatsappText = `Sayın ${selectedCustomer.name} faturanız oluşturulmuştur. Teşekkür ederiz.`
-      
-      // Twilio şablonunda domain sabit (örn: https://e4labs.com.tr/{{1}}).
-      // Bu yüzden her durumda sadece "storage/v1/..." yolunu gönderiyoruz.
-      const receiptPath = toTwilioStoragePath(receiptUrl)
-
+    if (result.ok && sendSmsChecked && selectedCustomer?.phone) {
+      const smsText = `Sayin ${selectedCustomer.name} faturaniz olusturulmustur. Tesekkur ederiz.`
       try {
-        await sendWhatsapp(selectedCustomer.phone, whatsappText, {
-          "4": selectedCustomer.name,
-          "1": receiptPath
-        })
-        toast.success('WhatsApp mesajı gönderildi')
+        await sendSms(selectedCustomer.phone, smsText)
+        toast.success('SMS gönderildi')
       } catch (err: unknown) {
-        toast.error(err instanceof Error ? err.message : 'WhatsApp mesajı gönderilemedi')
+        toast.error(err instanceof Error ? err.message : 'SMS gönderilemedi')
       }
     }
 
@@ -438,20 +407,19 @@ export function TransactionForm({ open, onClose, onSave, initial }: TransactionF
             />
           </div>
 
-          {/* WhatsApp gönderme seçeneği - sadece gelir + müşteri + telefon varsa */}
-          {canSendWhatsapp && (
-            <div className="flex items-start gap-3 p-3 border rounded-md bg-green-50 dark:bg-green-950/20">
+          {canSendSms && (
+            <div className="flex items-start gap-3 p-3 border rounded-md bg-blue-50 dark:bg-blue-950/20">
               <input
-                id="send-whatsapp"
+                id="send-sms"
                 type="checkbox"
-                checked={sendWhatsappChecked}
-                onChange={(e) => setSendWhatsappChecked(e.target.checked)}
+                checked={sendSmsChecked}
+                onChange={(e) => setSendSmsChecked(e.target.checked)}
                 className="w-4 h-4 mt-0.5 rounded"
               />
               <div>
-                <Label htmlFor="send-whatsapp" className="flex items-center gap-2 cursor-pointer">
-                  <MessageCircle className="w-4 h-4 text-green-600" />
-                  WhatsApp bildirim gönder
+                <Label htmlFor="send-sms" className="flex items-center gap-2 cursor-pointer">
+                  <MessageSquare className="w-4 h-4 text-blue-600" />
+                  SMS bildirim gönder
                 </Label>
                 <p className="text-xs text-muted-foreground mt-0.5">
                   {selectedCustomer?.name} adlı müşteriye {selectedCustomer?.phone} numarasına ödeme alındı bildirimi gönderilir
