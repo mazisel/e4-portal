@@ -7,29 +7,25 @@ import { Input } from '@/components/ui/input'
 import { toast } from 'sonner'
 import { MessageSquare, Loader2 } from 'lucide-react'
 
-const ACTIVITY_LINK = 'https://dash.e4labs.com.tr/activity'
-
 export function SmsTestCard() {
   const [phone, setPhone] = useState('')
-  const [loadingType, setLoadingType] = useState<'invoice' | 'activity' | null>(null)
+  const [loading, setLoading] = useState(false)
 
-  const sendTest = async (type: 'invoice' | 'activity') => {
+  const sendTest = async () => {
     if (!phone) {
       toast.error('Lütfen test için bir numara girin')
       return
     }
 
-    setLoadingType(type)
-    const message =
-      type === 'invoice'
-        ? 'Sayın Test Kullanıcısı faturanız oluşturulmuştur. Teşekkür ederiz.'
-        : `Aktiviteniz eksik, lutfen tamamlayin. ${ACTIVITY_LINK}`
-
+    setLoading(true)
     try {
       const res = await fetch('/api/sms', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ phone, message }),
+        body: JSON.stringify({
+          phone,
+          message: 'Sayin Test Kullanicisi faturaniz olusturulmustur. Tesekkur ederiz.',
+        }),
       })
       const data = await res.json()
       if (!res.ok) throw new Error(data.error || 'SMS gönderilemedi')
@@ -41,7 +37,7 @@ export function SmsTestCard() {
     } catch (err: unknown) {
       toast.error(err instanceof Error ? err.message : 'Gönderim hatası')
     } finally {
-      setLoadingType(null)
+      setLoading(false)
     }
   }
 
@@ -63,13 +59,9 @@ export function SmsTestCard() {
           onChange={e => setPhone(e.target.value)}
           className="max-w-xs"
         />
-        <Button onClick={() => sendTest('invoice')} disabled={loadingType !== null || !phone} className="bg-blue-600 hover:bg-blue-700 text-white">
-          {loadingType === 'invoice' ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <MessageSquare className="w-4 h-4 mr-2" />}
-          {loadingType === 'invoice' ? 'Gönderiliyor...' : 'Fatura Testi'}
-        </Button>
-        <Button onClick={() => sendTest('activity')} disabled={loadingType !== null || !phone} variant="outline">
-          {loadingType === 'activity' ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <MessageSquare className="w-4 h-4 mr-2" />}
-          {loadingType === 'activity' ? 'Gönderiliyor...' : 'Aktivite Testi'}
+        <Button onClick={sendTest} disabled={loading || !phone} className="bg-blue-600 hover:bg-blue-700 text-white">
+          {loading ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <MessageSquare className="w-4 h-4 mr-2" />}
+          {loading ? 'Gönderiliyor...' : 'Fatura SMS Testi'}
         </Button>
       </CardContent>
     </Card>

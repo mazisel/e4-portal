@@ -1,6 +1,5 @@
 import { createAdminClient } from '@/lib/supabase-admin'
 import { request as httpsRequest } from 'node:https'
-import { sendSms } from '@/lib/sms'
 
 const REMINDER_TIME_ZONE = 'Europe/Istanbul'
 const REMINDER_SLOTS = new Set(['22:00', '23:00', '23:15', '23:30', '23:45', '23:59'])
@@ -189,23 +188,6 @@ async function runReminderCheck(slotKey: string) {
   await sendTelegramMessage(message)
   console.info(`[activity-reminder] ${slotTime} mesaj gonderildi (${missingUsers.length} kisi)`)
 
-  if (slotTime === '23:59') {
-    console.info('[activity-reminder] 23:59 SMS bildirimleri baslatiliyor...')
-    const activityLink = process.env.ACTIVITY_LINK?.trim() || DEFAULT_ACTIVITY_TEST_LINK
-    for (const user of missingUsers) {
-      if (user.phone) {
-        try {
-          await sendSms({
-            phone: user.phone,
-            message: `Aktiviteniz eksik, lutfen tamamlayin. ${activityLink}`,
-          })
-          console.info(`[activity-reminder] SMS gonderildi: ${user.phone}`)
-        } catch (error) {
-          console.error(`[activity-reminder] SMS hatasi (${user.phone}):`, error)
-        }
-      }
-    }
-  }
 }
 
 function ensureConfig() {
