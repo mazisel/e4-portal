@@ -8,7 +8,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
-import { ShieldCheck, ShieldUser, UserPlus, Users } from 'lucide-react'
+import { ShieldCheck, ShieldUser, Trash2, UserPlus, Users } from 'lucide-react'
 import { toast } from 'sonner'
 import { UserRole } from '@/types'
 
@@ -220,6 +220,7 @@ export function UserManagementTable({ initialUsers, currentUserId }: UserManagem
   const [pendingKey, setPendingKey] = useState<string | null>(null)
   const [creating, setCreating] = useState(false)
   const [editingUser, setEditingUser] = useState<ManagedUser | null>(null)
+  const [deletingUser, setDeletingUser] = useState<ManagedUser | null>(null)
 
   const filteredUsers = useMemo(() => {
     const term = query.trim().toLocaleLowerCase('tr-TR')
@@ -308,6 +309,35 @@ export function UserManagementTable({ initialUsers, currentUserId }: UserManagem
       toast.success('Kullanici guncellendi')
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Kullanici guncellenemedi'
+      toast.error(message)
+    } finally {
+      setPendingKey(null)
+    }
+  }
+
+  const handleDeleteUser = async () => {
+    if (!deletingUser) return
+
+    setPendingKey(deletingUser.id)
+
+    try {
+      const response = await fetch('/api/users', {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userId: deletingUser.id }),
+      })
+
+      const payload = await response.json()
+
+      if (!response.ok) {
+        throw new Error(payload.error ?? 'Kullanici silinemedi')
+      }
+
+      setUsers(prev => prev.filter(u => u.id !== deletingUser.id))
+      setDeletingUser(null)
+      toast.success('Kullanici silindi')
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Kullanici silinemedi'
       toast.error(message)
     } finally {
       setPendingKey(null)
@@ -426,14 +456,26 @@ export function UserManagementTable({ initialUsers, currentUserId }: UserManagem
                       </TableCell>
                       <TableCell>{formatJoinDate(user.created_at)}</TableCell>
                       <TableCell className="text-right">
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          disabled={isPending}
-                          onClick={() => setEditingUser(user)}
-                        >
-                          {isPending ? 'Kaydediliyor...' : 'Düzenle'}
-                        </Button>
+                        <div className="flex items-center justify-end gap-2">
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            disabled={isPending}
+                            onClick={() => setEditingUser(user)}
+                          >
+                            {isPending ? 'İşleniyor...' : 'Düzenle'}
+                          </Button>
+                          {!isCurrentUser && (
+                            <Button
+                              size="sm"
+                              variant="destructive"
+                              disabled={isPending}
+                              onClick={() => setDeletingUser(user)}
+                            >
+                              <Trash2 className="h-3.5 w-3.5" />
+                            </Button>
+                          )}
+                        </div>
                       </TableCell>
                     </TableRow>
                   )
@@ -477,6 +519,31 @@ export function UserManagementTable({ initialUsers, currentUserId }: UserManagem
           onSubmit={handleUpdateUser}
           pending={pendingKey === editingUser.id}
         />
+      )}
+
+      {deletingUser && (
+        <Dialog open onOpenChange={open => !open && setDeletingUser(null)}>
+          <DialogContent aria-describedby={undefined}>
+            <DialogHeader>
+              <DialogTitle>Kullanıcıyı Sil</DialogTitle>
+              <DialogDescription>
+                <strong>{getDisplayName(deletingUser)}</strong> ({deletingUser.email}) kullanıcısı kalıcı olarak silinecek. Bu işlem geri alınamaz.
+              </DialogDescription>
+            </DialogHeader>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setDeletingUser(null)}>
+                Vazgeç
+              </Button>
+              <Button
+                variant="destructive"
+                disabled={pendingKey === deletingUser.id}
+                onClick={handleDeleteUser}
+              >
+                {pendingKey === deletingUser.id ? 'Siliniyor...' : 'Evet, Sil'}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
       )}
     </div>
   )

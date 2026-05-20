@@ -94,6 +94,40 @@ export async function POST(request: NextRequest) {
   })
 }
 
+export async function DELETE(request: NextRequest) {
+  const adminCheck = await getCurrentAdminProfile()
+  if ('error' in adminCheck) return adminCheck.error
+
+  const { userId } = await request.json()
+
+  if (typeof userId !== 'string' || !userId) {
+    return NextResponse.json({ error: 'Gecersiz istek' }, { status: 400 })
+  }
+
+  if (userId === adminCheck.currentUser.id) {
+    return NextResponse.json({ error: 'Kendi hesabini silemezsin' }, { status: 400 })
+  }
+
+  const admin = createAdminClient()
+
+  const { error: profileError } = await admin
+    .from('profiles')
+    .delete()
+    .eq('id', userId)
+
+  if (profileError) {
+    return NextResponse.json({ error: profileError.message }, { status: 500 })
+  }
+
+  const { error: authError } = await admin.auth.admin.deleteUser(userId)
+
+  if (authError) {
+    return NextResponse.json({ error: authError.message }, { status: 500 })
+  }
+
+  return NextResponse.json({ success: true })
+}
+
 export async function PATCH(request: NextRequest) {
   const adminCheck = await getCurrentAdminProfile()
   if ('error' in adminCheck) return adminCheck.error
