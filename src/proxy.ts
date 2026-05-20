@@ -5,7 +5,6 @@ import { normalizeProfileRecord } from '@/lib/profile-utils'
 export async function proxy(request: NextRequest) {
   const pathname = request.nextUrl.pathname
 
-  // /storage için auth bypass - Dosya Proxy API tarafından işlenecek
   if (pathname.startsWith('/storage')) {
     return NextResponse.next()
   }
@@ -31,31 +30,37 @@ export async function proxy(request: NextRequest) {
     }
   )
 
-  const { data: { user } } = await supabase.auth.getUser()
-  let activeUser = user
-
   const isAuthPage = request.nextUrl.pathname.startsWith('/login')
   const isAppPage = !isAuthPage && request.nextUrl.pathname !== '/'
 
-  if (user) {
-    const { data: profile } = await supabase
-      .from('profiles')
-      .select('*')
-      .eq('id', user.id)
-      .single()
+  let activeUser = null
 
-    const normalizedProfile = normalizeProfileRecord(profile)
+  try {
+    const { data: { user } } = await supabase.auth.getUser()
+    activeUser = user
 
-    if (normalizedProfile && !normalizedProfile.is_active) {
-      await supabase.auth.signOut()
-      activeUser = null
+    if (user) {
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('id', user.id)
+        .single()
 
-      if (!isAuthPage) {
-        const url = request.nextUrl.clone()
-        url.pathname = '/login'
-        return NextResponse.redirect(url)
+      const normalizedProfile = normalizeProfileRecord(profile)
+
+      if (normalizedProfile && !normalizedProfile.is_active) {
+        await supabase.auth.signOut()
+        activeUser = null
+
+        if (!isAuthPage) {
+          const url = request.nextUrl.clone()
+          url.pathname = '/login'
+          return NextResponse.redirect(url)
+        }
       }
     }
+  } catch {
+    activeUser = null
   }
 
   if (!activeUser && isAppPage) {
