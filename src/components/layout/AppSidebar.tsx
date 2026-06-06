@@ -8,6 +8,7 @@ import {
   Users, Building2, SlidersHorizontal, Truck, X,
   Wallet, CreditCard, HandCoins, CalendarDays,
   ClipboardList, TrendingUp, LogOut, ChevronDown, Settings,
+  SquareKanban,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useAuth } from '@/contexts/AuthContext'
@@ -195,6 +196,9 @@ export function AppSidebar({ open, onClose }: AppSidebarProps) {
             pathname={pathname}
             onClose={onClose}
           />
+
+          {/* Görev Panosu — üst seviye, bağımsız */}
+          <NavLink href="/kanban" icon={SquareKanban} label="Görevler" pathname={pathname} onClose={onClose} />
 
           {/* Kullanıcılar — admin only */}
           {isAdmin && (

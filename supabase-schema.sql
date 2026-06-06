@@ -635,3 +635,48 @@ CREATE POLICY "activity_delete" ON activity_logs FOR DELETE USING (
 CREATE OR REPLACE TRIGGER trg_activity_logs_updated_at
   BEFORE UPDATE ON activity_logs
   FOR EACH ROW EXECUTE FUNCTION update_updated_at();
+
+-- ============================================================
+-- 11. KANBAN GÖREVLERİ (Görev panosu — herkes görür, herkes atayabilir)
+-- ============================================================
+
+CREATE TABLE IF NOT EXISTS kanban_tasks (
+  id             uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  creator_id     uuid NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+  creator_email  text,
+  assignee_id    uuid REFERENCES auth.users(id) ON DELETE SET NULL,
+  assignee_email text,
+  title          text NOT NULL,
+  description    text,
+  status         text NOT NULL DEFAULT 'todo'  CHECK (status   IN ('todo', 'in_progress', 'done')),
+  priority       text NOT NULL DEFAULT 'medium' CHECK (priority IN ('low', 'medium', 'high')),
+  due_date       date,
+  created_at     timestamptz NOT NULL DEFAULT now(),
+  updated_at     timestamptz NOT NULL DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS idx_kanban_tasks_status   ON kanban_tasks(status);
+CREATE INDEX IF NOT EXISTS idx_kanban_tasks_assignee ON kanban_tasks(assignee_id);
+
+ALTER TABLE kanban_tasks ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "kanban_select" ON kanban_tasks;
+DROP POLICY IF EXISTS "kanban_insert" ON kanban_tasks;
+DROP POLICY IF EXISTS "kanban_update" ON kanban_tasks;
+DROP POLICY IF EXISTS "kanban_delete" ON kanban_tasks;
+
+-- Herkes tüm görevleri görür
+CREATE POLICY "kanban_select" ON kanban_tasks FOR SELECT USING (auth.uid() IS NOT NULL);
+-- Görevi kendi adına oluşturursun (istediğin kişiye atayabilirsin)
+CREATE POLICY "kanban_insert" ON kanban_tasks FOR INSERT WITH CHECK (auth.uid() = creator_id);
+-- Görevi sadece oluşturan veya atanan kişi taşıyıp düzenleyebilir.
+-- WITH CHECK gevşek: düzenleme yetkisi olan kişi görevi istediğine yeniden atayabilir.
+CREATE POLICY "kanban_update" ON kanban_tasks FOR UPDATE
+  USING (auth.uid() = creator_id OR auth.uid() = assignee_id)
+  WITH CHECK (auth.uid() IS NOT NULL);
+CREATE POLICY "kanban_delete" ON kanban_tasks FOR DELETE
+  USING (auth.uid() = creator_id OR auth.uid() = assignee_id);
+
+CREATE OR REPLACE TRIGGER trg_kanban_tasks_updated_at
+  BEFORE UPDATE ON kanban_tasks
+  FOR EACH ROW EXECUTE FUNCTION update_updated_at();

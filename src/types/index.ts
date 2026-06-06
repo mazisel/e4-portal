@@ -209,3 +209,37 @@ export const ADVANCE_STATUS_LABELS: Record<AdvanceStatus, string> = {
   returned: 'Geri Ödendi',
   deducted: 'Maaştan Kesildi',
 }
+
+export type KanbanStatus = 'todo' | 'in_progress' | 'done'
+export type KanbanPriority = 'low' | 'medium' | 'high'
+
+export interface KanbanTask {
+  id: string
+  creator_id: string
+  creator_email: string | null
+  assignee_id: string | null
+  assignee_email: string | null
+  title: string
+  description: string | null
+  status: KanbanStatus
+  priority: KanbanPriority
+  due_date: string | null
+  created_at: string
+  updated_at: string
+  creator?: { full_name: string | null; email: string | null } | null
+  assignee?: { full_name: string | null; email: string | null } | null
+}
+
+export const KANBAN_STATUS_LABELS: Record<KanbanStatus, string> = {
+  todo: 'Yapılacak',
+  in_progress: 'Devam Ediyor',
+  done: 'Tamamlandı',
+}
+
+export const KANBAN_STATUS_ORDER: KanbanStatus[] = ['todo', 'in_progress', 'done']
+
+export const KANBAN_PRIORITY_LABELS: Record<KanbanPriority, string> = {
+  low: 'Düşük',
+  medium: 'Orta',
+  high: 'Yüksek',
+}
